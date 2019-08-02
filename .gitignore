@@ -1,0 +1,6 @@
+#TestSynthesis artifacts
+test_syn
+
+#Merge files
+*.mrg
+*.bak
