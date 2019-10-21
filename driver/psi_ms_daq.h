@@ -6,6 +6,10 @@
 
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //*******************************************************************************
 // Documentation
 //*******************************************************************************
@@ -697,6 +701,10 @@ PsiMsDaq_RetCode_t PsiMsDaq_RegGetBit(	PsiMsDaq_IpHandle ipHandle,
 										const uint32_t addr,
 										const uint32_t mask,
 										bool* const value_p);
+										
+#ifdef __cplusplus
+}
+#endif
 
 
 
