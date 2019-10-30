@@ -90,6 +90,8 @@ add_sources "../tb" {
 	psi_ms_daq_axi/psi_ms_daq_axi_tb_str2_pkg.vhd \
 	psi_ms_daq_axi/psi_ms_daq_axi_tb_str3_pkg.vhd \
 	psi_ms_daq_axi/psi_ms_daq_axi_tb.vhd \
+	psi_ms_daq_axi_1s/psi_ms_daq_axi_1s_tb_str0_pkg.vhd \
+	psi_ms_daq_axi_1s/psi_ms_daq_axi_1s_tb.vhd \
 } -tag tb
 	
 #TB Runs
@@ -110,6 +112,9 @@ create_tb_run "psi_ms_daq_daq_dma_tb"
 add_tb_run
 
 create_tb_run "psi_ms_daq_axi_tb"
+add_tb_run
+
+create_tb_run "psi_ms_daq_axi_1s_tb"
 add_tb_run
 
 

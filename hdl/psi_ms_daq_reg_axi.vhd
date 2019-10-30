@@ -206,7 +206,7 @@ begin
 		v.Reg_Mode_Arm := (others => '0');
 		v.MaxLvlClr	:= (others => '0');
 		if AccAddr(15 downto 9) = X"0" & "001" then
-			Stream_v := to_integer(unsigned(AccAddr(8 downto 4)));
+			Stream_v := work.psi_common_math_pkg.min(to_integer(unsigned(AccAddr(8 downto 4))), Streams_g-1);
 			
 			-- MAXLVLn
 			if AccAddr(3 downto 0) = X"0" then
