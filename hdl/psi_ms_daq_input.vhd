@@ -114,6 +114,11 @@ architecture rtl of psi_ms_daq_input is
 	signal DataFifo_InRdy		: std_logic;
 	signal DataFifo_InData		: std_logic_vector(69 downto 0);	
 	signal DataFifo_OutData		: std_logic_vector(69 downto 0);	
+	signal DataFifo_PlData		: std_logic_vector(69 downto 0);
+	signal DataFifo_PlVld		: std_logic;
+	signal DataFifo_PlRdy		: std_logic;
+	signal DataFifo_Level		: std_logic_vector(log2ceil(StreamBuffer_g) downto 0);
+	signal DataPl_Level			: unsigned(1 downto 0);
 	
 	-- Internally reused signals
 	signal Daq_Data_I		: Input2Daq_Data_t;
@@ -343,6 +348,7 @@ begin
 	-- Output Side TLAST handling
 	--------------------------------------------
 	p_outlast : process(ClkMem)
+		variable PlLevel_v	: unsigned(DataPl_Level'range);
 	begin
 		if rising_edge(ClkMem) then
 			-- Default Value
@@ -357,11 +363,26 @@ begin
 			if OutTlastCnt /= InTlastCnt then
 				Daq_HasLast_I <= '1';
 			end if;
+			
+			-- Level Calculation (add samples in PL stage)
+			PlLevel_v := DataPl_Level;
+			if DataFifo_PlRdy = '1' and DataFifo_PlVld = '1' then
+				PlLevel_v := PlLevel_v + 1;
+			end if;
+			if Daq_Vld_I = '1' and Daq_Rdy = '1' then
+				PlLevel_v := PlLevel_v - 1;
+			end if;
+			DataPl_Level <= PlLevel_v;
+			-- We calculate the level one cycle late but this does not play any role (the DAQ FSM only runs after data is transferred)
+			Daq_Level <= std_logic_vector(resize(unsigned(DataFifo_Level), Daq_Level'length) + DataPl_Level);			
 		
 			-- Reset
 			if RstMem = '1' then
-				OutTlastCnt <= (others => '0');
-			end if;		
+				OutTlastCnt 	<= (others => '0');
+				Daq_Level 		<= (others => '0');
+				DataPl_Level 	<= (others => '0');
+			end if;	
+			
 		end if;
 	end process;
 	Daq_HasLast <= Daq_HasLast_I;
@@ -455,8 +476,8 @@ begin
 	-- Data FIFO
 	DataFifo_InData(63 downto 0) 	<= r.DataSftReg;
 	DataFifo_InData(67 downto 64)	<= std_logic_vector(r.DataFifoBytes);
-	DataFifo_InData(68)			<= r.DataFifoIsTo;
-	DataFifo_InData(69)			<= r.DataFifoIsTrig;
+	DataFifo_InData(68)				<= r.DataFifoIsTo;
+	DataFifo_InData(69)				<= r.DataFifoIsTrig;
 	
 	
 	i_dfifo : entity work.psi_common_async_fifo 
@@ -474,12 +495,28 @@ begin
 			InData		=> DataFifo_InData,
 			InVld		=> r.DataFifoVld,
 			InRdy		=> DataFifo_InRdy,
-			OutData		=> DataFifo_OutData,
-			OutVld		=> Daq_Vld_I,
-			OutRdy		=> Daq_Rdy,	
-			OutLevel	=> Daq_Level(log2ceil(StreamBuffer_g) downto 0)
+			OutData		=> DataFifo_PlData,
+			OutVld		=> DataFifo_PlVld,
+			OutRdy		=> DataFifo_PlRdy,	
+			OutLevel	=> DataFifo_Level
 		);
-	Daq_Level(Daq_Level'high downto log2ceil(StreamBuffer_g)+1) <= (others => '0');
+		
+	-- An additional pipeline stage after the FIFO is required for timing reasons
+	i_dplstage : entity work.psi_common_pl_stage
+		generic map (
+			Width_g		=> 70,
+			UseRdy_g	=> true
+		)
+		port map (	
+			Clk			=> ClkMem,
+			Rst			=> RstMem,
+			InVld		=> DataFifo_PlVld,
+			InRdy		=> DataFifo_PlRdy,
+			InData		=> DataFifo_PlData,
+			OutVld		=> Daq_Vld_I,
+			OutRdy		=> Daq_Rdy,
+			OutData		=> DataFifo_OutData
+		);
 	Str_Rdy <= DataFifo_InRdy;
 		
 	Daq_Data_I.Data		<= DataFifo_OutData(63 downto 0);
