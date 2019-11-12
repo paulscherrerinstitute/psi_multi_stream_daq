@@ -117,13 +117,13 @@ extern "C" {
 *       .winSize = <sizePerWindow>, //in bytes
 *       .streamWidthBits = <widthInBits>
 *   };
-*   PsiMsDaq_Str_Configure(daqHandle, &cfg);
+*   PsiMsDaq_Str_Configure(daqStrHandle, &cfg);
 *   //Register ballback
-*   PsiMsDaq_Str_SetIrqCallbackWin(daqHandle, UserDaqIsr, NULL);
+*   PsiMsDaq_Str_SetIrqCallbackWin(daqStrHandle, UserDaqIsr, NULL);
 *   //Enable IRQ
-*   PsiMsDaq_Str_SetIrqEnable(daqHandle, true);
+*   PsiMsDaq_Str_SetIrqEnable(daqStrHandle, true);
 *   //Enable recorder for stream
-*   PsiMsDaq_Str_SetEnable(daqHandle, true);
+*   PsiMsDaq_Str_SetEnable(daqStrHandle, true);
 *
 *   //Wait in endless loop for IRQs comming in
 *   while(1){};
