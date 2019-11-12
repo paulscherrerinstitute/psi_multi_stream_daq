@@ -499,7 +499,6 @@ PsiMsDaq_RetCode_t PsiMsDaq_StrWin_GetNoOfSamples(	PsiMsDaq_WinInfo_t winInfo,
 {
 	//Pointer Case
 	PsiMsDaq_Inst_t* ip_p = (PsiMsDaq_Inst_t*)winInfo.ipHandle;
-	PsiMsDaq_StrInst_t* str_p = (PsiMsDaq_StrInst_t*)winInfo.strHandle;
 	//Setup
 	uint8_t strNr;
 	SAFE_CALL(PsiMsDaq_Str_GetStrNr(winInfo.strHandle, &strNr));
@@ -507,13 +506,11 @@ PsiMsDaq_RetCode_t PsiMsDaq_StrWin_GetNoOfSamples(	PsiMsDaq_WinInfo_t winInfo,
 	SAFE_CALL(CheckStrNr(winInfo.ipHandle, strNr))
 	SAFE_CALL(CheckWinNr(winInfo.strHandle, winInfo.winNr))
 	//Implementation
-	uint32_t noOfBytes;
 	SAFE_CALL(PsiMsDaq_RegGetField(	winInfo.ipHandle,
 									PSI_MS_DAQ_WIN_WINCNT(strNr, winInfo.winNr, ip_p->strAddrOffs),
 									PSI_MS_DAQ_WIN_WINCNT_LSB_CNT,
 									PSI_MS_DAQ_WIN_WINCNT_MSB_CNT,
-									&noOfBytes));
-	*noOfSamples_p = noOfBytes / str_p->widthBytes;
+									noOfSamples_p));
 	//Done
 	return PsiMsDaq_RetCode_Success;
 }
@@ -601,7 +598,7 @@ PsiMsDaq_RetCode_t PsiMsDaq_StrWin_GetDataUnwrapped(	PsiMsDaq_WinInfo_t winInfo,
 	//Calculate address of last byte and trigger byte (with regard to wrapping)
 	uint32_t lastSplAddr;
 	SAFE_CALL(PsiMsDaq_StrWin_GetLastSplAddr(winInfo, &lastSplAddr));
-	uint32_t trigByteAddr = lastSplAddr - (str_p->postTrig+1)*str_p->widthBytes;	//+1 because trigger is not included in postTrigger
+	uint32_t trigByteAddr = lastSplAddr - str_p->postTrig*str_p->widthBytes;
 	if (trigByteAddr < winStart) {
 		trigByteAddr += str_p->winSize;
 	}
@@ -612,7 +609,7 @@ PsiMsDaq_RetCode_t PsiMsDaq_StrWin_GetDataUnwrapped(	PsiMsDaq_WinInfo_t winInfo,
 
 
 	//If all bytes are written without wrap, copy directly
-	const uint32_t firstByteLinear = lastByteAddr - bytes + 1;
+	const int64_t firstByteLinear = (int64_t)lastByteAddr - bytes + 1;
 	if (firstByteLinear >= winStart) {
 		ip_p->memcpyFct(buffer_p, (void*)(size_t)firstByteLinear, bytes);
 	}
@@ -620,9 +617,9 @@ PsiMsDaq_RetCode_t PsiMsDaq_StrWin_GetDataUnwrapped(	PsiMsDaq_WinInfo_t winInfo,
 	else {
 		const uint32_t secondChunkSize = lastByteAddr - winStart + 1;
 		const uint32_t firstChunkSize = bytes-secondChunkSize;
-		const uint32_t firstChunkStartAddr = winLast-firstChunkSize+1;
-		ip_p->memcpyFct(buffer_p, (void*)(size_t)firstChunkStartAddr, firstChunkSize);
-		ip_p->memcpyFct(buffer_p+firstChunkSize, (void*)(size_t)winStart, secondChunkSize);
+		const int64_t firstChunkStartAddr = winLast-firstChunkSize+1;
+		ip_p->memcpyFct(buffer_p, (void*)(size_t)firstChunkStartAddr, firstChunkSize);	
+		ip_p->memcpyFct((void*)((uint32_t)buffer_p+firstChunkSize), (void*)(size_t)winStart, secondChunkSize);
 	}
 
 	//Done

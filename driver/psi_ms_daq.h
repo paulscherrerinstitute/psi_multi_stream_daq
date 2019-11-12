@@ -256,7 +256,7 @@ typedef enum {
 	PsiMsDaqn_RecMode_Continuous	= 0,	///< Continuous recording
 	PsiMsDaqn_RecMode_TriggerMask	= 1,	///< Continuously record pre-trigger data but only detect triggers after PsiMsDaq_Str_Arm() was called
 	PsiMsDaqn_RecMode_SingleShot	= 2,	///< Only record pre-trigger after PsiMsDaq_Str_Arm() was called and stop recording after one trigger
-	PsiMsDaqn_RecMode_Manual		= 3,	///< Manaully control the recording by setting and clearing the arm bit
+	PsiMsDaqn_RecMode_Manual		= 3 	///< Manaully control the recording by setting and clearing the arm bit
 } PsiMsDaq_RecMode_t;
 
 /**
