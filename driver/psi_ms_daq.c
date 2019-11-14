@@ -406,6 +406,18 @@ PsiMsDaq_RetCode_t PsiMsDaq_Str_GetMaxLvl(	PsiMsDaq_StrHandle strHndl,
 	return PsiMsDaq_RetCode_Success;
 }
 
+PsiMsDaq_RetCode_t PsiMsDaq_Str_ClrMaxLvl(	PsiMsDaq_StrHandle strHndl)
+{
+	//Pointer Cast
+	PsiMsDaq_StrInst_t* inst_p = (PsiMsDaq_StrInst_t*) strHndl;
+	PsiMsDaq_IpHandle ipHandle = inst_p->ipHandle;
+	const uint8_t strNr = inst_p->nr;
+	//Implementation
+	SAFE_CALL(PsiMsDaq_RegWrite(ipHandle, PSI_MS_DAQ_REG_MAXLVL(strNr), 0));
+	//Done
+	return PsiMsDaq_RetCode_Success;	
+}
+
 PsiMsDaq_RetCode_t PsiMsDaq_Str_GetFreeWindows(	PsiMsDaq_StrHandle strHndl,
 												uint8_t* const freeWindows_p)
 {

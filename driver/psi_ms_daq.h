@@ -425,6 +425,14 @@ PsiMsDaq_RetCode_t PsiMsDaq_Str_Arm(PsiMsDaq_StrHandle strHndl);
  */
 PsiMsDaq_RetCode_t PsiMsDaq_Str_GetMaxLvl(	PsiMsDaq_StrHandle strHndl,
 											uint32_t* const maxLvl_p);
+											
+/**
+ * @brief	Clear the maximum input buffer fill level
+ *
+ * @param	strHndl		Driver handle for the stream
+ * @return	Return Code
+ */
+PsiMsDaq_RetCode_t PsiMsDaq_Str_ClrMaxLvl(	PsiMsDaq_StrHandle strHndl);
 
 /**
  * @brief	Get the number of free windows.
