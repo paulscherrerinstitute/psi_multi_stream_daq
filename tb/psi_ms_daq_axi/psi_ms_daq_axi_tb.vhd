@@ -378,7 +378,7 @@ begin
 		 -- *** Check end state ***
 		 assert Str0WinCheck >= 4 report "###ERROR###: Stream 0 checks not completed" severity error;
 		 assert Str1WinCheck = 1 report "###ERROR###: Stream 1 checks not completed" severity error;
-		 assert Str2WinCheck = 2 report "###ERROR###: Stream 2 checks not completed"  severity error;
+		 assert Str2WinCheck >= 2 report "###ERROR###: Stream 2 checks not completed"  severity error;
 		 assert Str3WinCheck = 2 report "###ERROR###: Stream 3 checks not completed"  severity error;
 		wait;
 	end process;
