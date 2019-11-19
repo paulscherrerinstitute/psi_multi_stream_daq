@@ -1,3 +1,11 @@
+## 1.2.1
+* Bugfixes
+  * Optimized timing between input FIFO and DMA
+  * Fix data unwrapping in driver
+  * Corrected several issues in documentation
+  * Made driver C++ tolerant
+  * Made code working for only one streamgit 
+
 ## 1.2.0
 * First Open Source Release (older versions not kept in history)
 * Added license and copyright headers
