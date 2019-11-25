@@ -398,7 +398,7 @@ begin
 			AxiDataWidth_g			=> AxiDataWidth_g,
 			AxiMaxBeats_g			=> AxiMaxBurstBeats_g,
 			AxiMaxOpenTrasactions_g	=> AxiMaxOpenTrasactions_g,
-			MaxOpenCommands_g		=> Streams_g,
+			MaxOpenCommands_g		=> max(2, Streams_g), -- ISE tools implement memory as FFs for one stream. Reason is unkown, so we always implement two streams for resource optimization reasons.
 			DataFifoDepth_g			=> 1024,
 			AxiFifoDepth_g			=> AxiFifoDepth_g,
 			RamBehavior_g			=> "RBW" -- Okay for Xilinx chips

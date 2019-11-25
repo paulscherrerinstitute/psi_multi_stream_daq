@@ -1,3 +1,7 @@
+## 1.2.2.
+* Bugfixes
+  * Workaround for ISE tools implementing memory as FFs in case of 1 stream
+
 ## 1.2.1
 * Bugfixes
   * Optimized timing between input FIFO and DMA
