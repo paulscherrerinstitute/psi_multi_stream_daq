@@ -1,7 +1,10 @@
 # General Information
 
 ## Maintainer
-Oliver Bründler [oliver.bruendler@psi.ch]
+Waldemar Koprek [waldemar.koprek@psi.ch]
+
+## Author
+Oliver Bründler [oli.bruendler@gmx.ch]
 
 ## License
 This library is published under [PSI HDL Library License](License.txt), which is [LGPL](LGPL2_1.txt) plus some additional exceptions to clarify the LGPL terms in the context of firmware development.
