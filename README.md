@@ -1,7 +1,7 @@
 # General Information
 
 ## Maintainer
-Waldemar Koprek [waldemar.koprek@psi.ch]
+Daniele Felici [daniele.felici@psi.ch]
 
 ## Author
 Oliver Bründler [oli.bruendler@gmx.ch]
