@@ -1,4 +1,8 @@
-## 1.2.2.
+## 1.2.3
+* Doc
+  * Changed repository mantainer
+
+## 1.2.2
 * Bugfixes
   * Workaround for ISE tools implementing memory as FFs in case of 1 stream
 
