@@ -19,11 +19,13 @@ library work;
 ------------------------------------------------------------------------------
 package psi_ms_daq_pkg is
 
-	constant MaxStreams_c		: integer	:= 32;
-	constant MaxWindows_c		: integer	:= 32;
-	constant MaxStreamsBits_c	: integer	:= log2ceil(MaxStreams_c);
-	constant MaxWindowsBits_c	: integer	:= log2ceil(MaxWindows_c);
-	constant MaxStreamWidth_c	: integer	:= 64;
+    constant MemoryBusWidth_c : integer := 512;
+    constant MemoryBusBytes_c : integer := MemoryBusWidth_c/8;
+    constant MaxStreams_c     : integer := 32;
+    constant MaxWindows_c     : integer := 32;
+    constant MaxStreamsBits_c : integer := log2ceil(MaxStreams_c);
+    constant MaxWindowsBits_c : integer := log2ceil(MaxWindows_c);
+    constant MaxStreamWidth_c : integer := MemoryBusWidth_c;
 	
 	subtype RecMode_t is std_logic_vector(1 downto 0);
 	constant RecMode_Continuous_c	: RecMode_t	:= std_logic_vector(to_unsigned(0, RecMode_t'length));
@@ -33,11 +35,12 @@ package psi_ms_daq_pkg is
 	
 	subtype WinType_t is std_logic_vector(MaxWindowsBits_c-1 downto 0);
 	type WinType_a is array (natural range <>) of WinType_t;
-	
+
+    constant Input2Daq_Data_Bytes_Len : natural := log2(MemoryBusBytes_c)+1;
 	type Input2Daq_Data_t is record
 		Last		: std_logic;
-		Data		: std_logic_vector(63 downto 0);
-		Bytes		: std_logic_vector(3 downto 0);
+		Data		: std_logic_vector(MemoryBusWidth_c-1 downto 0);
+		Bytes		: std_logic_vector(Input2Daq_Data_Bytes_Len-1 downto 0); 
 		IsTo		: std_logic;
 		IsTrig		: std_logic;
 	end record;

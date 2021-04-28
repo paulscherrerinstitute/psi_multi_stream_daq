@@ -37,16 +37,16 @@ entity psi_ms_daq_axi is
 		MaxBurstSize_g			: integer range 1 to 512		:= 512;
 		-- Axi
 		AxiDataWidth_g			: natural range 64 to 1024		:= 64;
-		AxiMaxBurstBeats_g		: integer range 1 to 256		:= 256;
-		AxiMaxOpenTrasactions_g	: natural range 1 to 8			:= 8;
+		AxiMaxBurstBeats_g		: integer range 1 to 256		:= 64;
+		AxiMaxOpenTrasactions_g	: natural range 1 to 8  		:= 8;
 		AxiFifoDepth_g			: natural						:= 1024;
 		-- Axi Slave
 		AxiSlaveIdWidth_g		: integer						:= 0
 	);
-	port (
+	port ( 
 		-- Data Stream Input
 		Str_Clk			: in	std_logic_vector(Streams_g-1 downto 0);
-		Str_Data		: in	t_aslv64(Streams_g-1 downto 0);
+		Str_Data		: in	t_aslv512(Streams_g-1 downto 0);
 		Str_Ts			: in	t_aslv64(Streams_g-1 downto 0);
 		Str_Vld			: in	std_logic_vector(Streams_g-1 downto 0);
 		Str_Rdy			: out	std_logic_vector(Streams_g-1 downto 0);
@@ -170,25 +170,25 @@ architecture rtl of psi_ms_daq_axi is
 	signal DmaMem_CmdSize		: std_logic_vector(31 downto 0); 
 	signal DmaMem_CmdVld		: std_logic;
 	signal DmaMem_CmdRdy		: std_logic;	
-	signal DmaMem_DatData		: std_logic_vector(63 downto 0);
+	signal DmaMem_DatData		: std_logic_vector(MemoryBusWidth_c-1 downto 0);
 	signal DmaMem_DatVld		: std_logic;
 	signal DmaMem_DatRdy		: std_logic;	
 	
 	-- Mem/Statemachine
 	signal MemSm_Done			: std_logic;
 	
-	-- Configuration
-	signal Cfg_StrEna			: std_logic_vector(Streams_g-1 downto 0);
-	signal Cfg_GlbEna			: std_logic;
-	signal Cfg_PostTrig			: t_aslv32(Streams_g-1 downto 0);
-	signal Cfg_Arm				: std_logic_vector(Streams_g-1 downto 0);
-	signal Cfg_RecMode			: t_aslv2(Streams_g-1 downto 0);
-	
-	-- Status
-	signal Stat_StrIrq			: std_logic_vector(Streams_g-1 downto 0);
-	signal Stat_StrLastWin		: WinType_a(Streams_g-1 downto 0);
-	signal Stat_IsArmed			: std_logic_vector(Streams_g-1 downto 0);
-	signal Stat_IsRecording		: std_logic_vector(Streams_g-1 downto 0);
+    -- Configuration
+    signal Cfg_StrEna         : std_logic_vector(Streams_g-1 downto 0);
+    signal Cfg_GlbEna         : std_logic;
+    signal Cfg_PostTrig       : t_aslv32(Streams_g-1 downto 0);
+    signal Cfg_Arm            : std_logic_vector(Streams_g-1 downto 0);
+    signal Cfg_RecMode        : t_aslv2(Streams_g-1 downto 0);
+    signal Cfg_PreTrigDisable : std_logic_vector(Streams_g-1 downto 0);
+    -- Status
+    signal Stat_StrIrq        : std_logic_vector(Streams_g-1 downto 0);
+    signal Stat_StrLastWin    : WinType_a(Streams_g-1 downto 0);
+    signal Stat_IsArmed       : std_logic_vector(Streams_g-1 downto 0);
+    signal Stat_IsRecording   : std_logic_vector(Streams_g-1 downto 0);
 	
 	-- Context Memory Connections
 	signal CtxStr_Cmd			: ToCtxStr_t;
@@ -259,7 +259,8 @@ begin
 			IsArmed			=> Stat_IsArmed,
 			IsRecording		=> Stat_IsRecording,
 			RecMode			=> Cfg_RecMode,
-			ClkMem			=> M_Axi_Aclk,
+            PreTrigDisable  => Cfg_PreTrigDisable,
+            ClkMem			=> M_Axi_Aclk,
 			RstMem			=> M_Axi_Areset,
 			CtxStr_Cmd		=> CtxStr_Cmd,
 			CtxStr_Resp		=> CtxStr_Resp,
@@ -304,6 +305,7 @@ begin
 				RstReg			=> S_Axi_Areset,
 				PostTrigSpls	=> Cfg_PostTrig(str),
 				Mode			=> Cfg_RecMode(str),
+                PreTrigDisable  => Cfg_PreTrigDisable(str),
 				Arm				=> Cfg_Arm(str),
 				IsArmed			=> Stat_IsArmed(str),
 				IsRecording		=> Stat_IsRecording(str),
@@ -399,8 +401,8 @@ begin
 			AxiMaxBeats_g			=> AxiMaxBurstBeats_g,
 			AxiMaxOpenTrasactions_g	=> AxiMaxOpenTrasactions_g,
 			MaxOpenCommands_g		=> max(2, Streams_g), -- ISE tools implement memory as FFs for one stream. Reason is unkown, so we always implement two streams for resource optimization reasons.
-			DataFifoDepth_g			=> 1024,
-			AxiFifoDepth_g			=> AxiFifoDepth_g,
+			DataFifoDepth_g			=> 4096,
+			-- AxiFifoDepth_g			=> AxiFifoDepth_g,
 			RamBehavior_g			=> "RBW" -- Okay for Xilinx chips
 		)
 		port map (

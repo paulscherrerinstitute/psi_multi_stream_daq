@@ -433,7 +433,7 @@ begin
 				-- Calculate Command
 				v.Dma_Cmd.Address	:= r.HndlPtr0;				
 				v.Dma_Cmd.Stream	:= r.HndlStream;
-				v.Dma_Cmd.MaxSize	:= std_logic_vector(to_unsigned(MaxBurstSize_g*8, v.Dma_Cmd.MaxSize'length)); -- 8 bytes per 64-bit QWORD
+				v.Dma_Cmd.MaxSize	:= std_logic_vector(to_unsigned(MaxBurstSize_g*MemoryBusBytes_c, v.Dma_Cmd.MaxSize'length)); -- 8 bytes per 64-bit QWORD
 				-- State update (abort if window is not free)
 				if (r.HndlOverwrite = '0') and (unsigned(r.HndlWinBytes) /= 0) and (r.NewBuffer(r.HndlStream) = '1') then
 					v.State							:= Idle_s;

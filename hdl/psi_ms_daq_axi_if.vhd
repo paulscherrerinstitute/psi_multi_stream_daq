@@ -10,10 +10,13 @@
 library ieee;
 	use ieee.std_logic_1164.all;
 	use ieee.numeric_std.all;
-	
+
+    use ieee.math_real.all;
+    
 library work;
 	use work.psi_common_math_pkg.all;
-
+    use work.psi_ms_daq_pkg.all;
+    
 ------------------------------------------------------------------------------
 -- Entity Declaration
 ------------------------------------------------------------------------------
@@ -24,7 +27,6 @@ entity psi_ms_daq_axi_if is
 		AxiMaxOpenTrasactions_g	: natural range 1 to 8		:= 8;
 		MaxOpenCommands_g		: positive					:= 16;
 		DataFifoDepth_g			: natural					:= 1024;
-		AxiFifoDepth_g			: natural					:= 1024;
 		RamBehavior_g			: string					:= "RBW"
 	);
 	port (
@@ -39,7 +41,7 @@ entity psi_ms_daq_axi_if is
 		Cmd_Rdy			: out	std_logic;
 		
 		-- Write Data
-		Dat_Data		: in	std_logic_vector(63 downto 0);
+		Dat_Data		: in	std_logic_vector(MemoryBusWidth_c-1 downto 0);
 		Dat_Vld			: in	std_logic;
 		Dat_Rdy			: out	std_logic;
 		
@@ -106,17 +108,18 @@ architecture rtl of psi_ms_daq_axi_if is
 	signal WrCmdFifo_Size		: std_logic_vector(31 downto 0);
 	signal DoneI				: std_logic;
 	signal ErrorI				: std_logic;
-	
+
 begin
 	Rst <= not Rst_n;
 	
 	InfoFifoIn(CommandAddrRng_c) <= Cmd_Addr;
-	InfoFifoIn(CommandSizeRng_c) <= Cmd_Size;
-		
+    InfoFifoIn(CommandSizeRng_c) <= Cmd_Size;
+
+    	
 	i_wrinfo_fifo : entity work.psi_common_sync_fifo
 		generic map (
 			Width_g			=> WrCmdWidth_c,
-			Depth_g			=> MaxOpenCommands_g,
+			Depth_g			=> MaxOpenCommands_g*16,
 			RamStyle_g		=> "distributed"
 		)
 		port map (
@@ -141,7 +144,7 @@ begin
 			AxiMaxOpenTrasactions_g		=> AxiMaxOpenTrasactions_g,
 			UserTransactionSizeBits_g	=> 32,
 			DataFifoDepth_g				=> DataFifoDepth_g,
-			DataWidth_g					=> 64,
+			DataWidth_g					=> MemoryBusWidth_c,
 			ImplRead_g					=> false,
 			ImplWrite_g					=> true,
 			RamBehavior_g				=> RamBehavior_g
@@ -212,7 +215,7 @@ begin
 			M_Axi_RValid	=> M_Axi_RValid,
 			M_Axi_RReady	=> M_Axi_RReady
 		);	
-		
+       
 	Done <= DoneI or ErrorI;
 	
 	

@@ -28,7 +28,7 @@ library work;
 -- $$ tbpkg=work.psi_tb_txt_util $$
 entity psi_ms_daq_input is
 	generic (
-		StreamWidth_g			: positive	range 8 to 64		:= 16;		-- Must be 8, 16, 32 or 64						$$ export=true $$
+		StreamWidth_g			: positive	range 8 to MemoryBusWidth_c	:= 16;		-- Must be 8 bits increments and modulo MemoryBusWidth_c						$$ export=true $$
 		StreamBuffer_g			: positive range 1 to 65535		:= 1024;	-- Buffer depth in QWORDs						$$ constant=32 $$
 		StreamTimeout_g			: real							:= 1.0e-3;	-- Timeout in seconds							$$ constant=10.0e-6 $$
 		StreamClkFreq_g			: real							:= 125.0e6;	-- Input clock frequency in Hz					$$ constant=125.0e6 $$
@@ -49,6 +49,7 @@ entity psi_ms_daq_input is
 		RstReg			: in 	std_logic;
 		PostTrigSpls	: in	std_logic_vector(31 downto 0);				-- $$ proc=daq $$
 		Mode			: in	RecMode_t;									-- $$ proc=daq $$
+        PreTrigDisable	: in	std_logic;									-- $$ proc=daq $$
 		Arm				: in	std_logic;									-- $$ proc=stream $$
 		IsArmed			: out	std_logic;									-- $$ proc=stream $$
 		IsRecording		: out	std_logic;									-- $$ proc=stream $$		
@@ -81,16 +82,19 @@ architecture rtl of psi_ms_daq_input is
 
 	-- Constants
 	constant TimeoutLimit_c		: integer	:= integer(StreamClkFreq_g*StreamTimeout_g)-1;
-	constant WconvFactor_c		: positive	:= 64/StreamWidth_g;
+	constant WconvFactor_c		: positive	:= MemoryBusWidth_c/StreamWidth_g;
 	constant TlastCntWidth_c	: positive	:= log2ceil(StreamBuffer_g) + 1;
-	
+
+    constant BytesIncr_c        : unsigned(log2(MemoryBusBytes_c)-1 downto 0)
+      := to_unsigned(StreamWidth_g/8, log2(MemoryBusBytes_c));
 	-- Two process method
 	type two_process_r is record
 		ModeReg			: RecMode_t;
 		ArmReg			: std_logic;
-		DataSftReg		: std_logic_vector(63 downto 0);
+		DataSftReg		: std_logic_vector(MemoryBusWidth_c-1 downto 0);
 		WordCnt			: unsigned(log2ceil(WconvFactor_c) downto 0);
-		DataFifoBytes	: unsigned(3 downto 0);
+        BytesCnt		: unsigned(Input2Daq_Data_Bytes_Len-1 downto 0);
+		DataFifoBytes	: unsigned(Input2Daq_Data_Bytes_Len-1 downto 0);
 		TrigLatch		: std_logic;
 		DataFifoVld		: std_logic;
 		DataFifoIsTo	: std_logic;
@@ -104,17 +108,21 @@ architecture rtl of psi_ms_daq_input is
 		HasTlastSync	: std_logic_vector(0 to 1);
 		IsArmed			: std_logic;
 		RecEna			: std_logic;
+        PreRecEna	    : std_logic;
+        StrData         : std_logic_vector(StreamWidth_g-1 downto 0);  -- 1 clk delayed stream data
 	end record;
 	signal r, r_next : two_process_r;
 	
 	-- General Instantiation signals
 	signal Str_Rst : std_logic;	
 
+    -- DataFifo contains Data, Number of Bytes and Timeout and Trig signals
+    constant DataFifo_Width_c : natural := MemoryBusWidth_c+Input2Daq_Data_Bytes_Len+2;
 	-- Data FIFO signals
 	signal DataFifo_InRdy		: std_logic;
-	signal DataFifo_InData		: std_logic_vector(69 downto 0);	
-	signal DataFifo_OutData		: std_logic_vector(69 downto 0);	
-	signal DataFifo_PlData		: std_logic_vector(69 downto 0);
+	signal DataFifo_InData		: std_logic_vector(DataFifo_Width_c-1 downto 0);	
+	signal DataFifo_OutData		: std_logic_vector(DataFifo_Width_c-1 downto 0);	
+	signal DataFifo_PlData		: std_logic_vector(DataFifo_Width_c-1 downto 0);
 	signal DataFifo_PlVld		: std_logic;
 	signal DataFifo_PlRdy		: std_logic;
 	signal DataFifo_Level		: std_logic_vector(log2ceil(StreamBuffer_g) downto 0);
@@ -140,26 +148,27 @@ architecture rtl of psi_ms_daq_input is
 	-- Clock Crossing Signals
 	signal PostTrigSpls_Sync 	: std_logic_vector(PostTrigSpls'range);
 	signal Mode_Sync			: RecMode_t;
+    signal PreTrigDisable_Sync  : std_logic;
 	signal Arm_Sync 			: std_logic;
 	signal RstReg_Sync			: std_logic;
 	signal RstAcq_Sync			: std_logic;
 	
 begin
-	--------------------------------------------
-	-- Combinatorial Process
-	--------------------------------------------
-	p_comb : process(	r,
-						Str_Vld, Str_Data, Str_Trig, Str_Ts, PostTrigSpls_Sync, Daq_Rdy, Ts_Rdy, Mode_Sync, Arm_Sync,
-						DataFifo_InRdy, DataFifo_InData, DataFifo_OutData, Daq_Vld_I, Daq_Data_I, Daq_HasLast_I, Ts_Vld_I, OutTlastCnt, TsFifo_AlmFull, TsFifo_Empty,
-						InTlastCnt, TsFifo_InRdy, TsFifo_RdData)
-		variable v 					: two_process_r;
-		variable ProcessSample_v	: boolean;
-		variable TriggerSample_v	: boolean;
-		variable AddSamples_v		: integer range 0 to 1;
-		variable TrigMasked_v		: std_logic;
-	begin
-		-- *** Hold variables stable ***
-		v := r;
+    --------------------------------------------
+    -- Combinatorial Process
+    --------------------------------------------
+    p_comb : process(r,
+                     Str_Vld, Str_Data, Str_Trig, Str_Ts, PostTrigSpls_Sync, Daq_Rdy, Ts_Rdy, Mode_Sync,
+                     Arm_Sync,DataFifo_InRdy, DataFifo_InData, DataFifo_OutData, Daq_Vld_I, Daq_Data_I,
+                     Daq_HasLast_I, Ts_Vld_I, OutTlastCnt, TsFifo_AlmFull, TsFifo_Empty,
+                     InTlastCnt, TsFifo_InRdy, TsFifo_RdData, PreTrigDisable_Sync)
+        variable v               : two_process_r;
+        variable ProcessSample_v : boolean;
+        variable TriggerSample_v : boolean;
+        variable TrigMasked_v    : std_logic;
+    begin
+        -- *** Hold variables stable ***
+        v := r;
 		
 		-- *** Simplification Variables ***
 		ProcessSample_v := (DataFifo_InRdy = '1') and (Str_Vld = '1');
@@ -170,7 +179,11 @@ begin
 		v.DataFifoIsTrig	:= '0';
 		v.ModeReg			:= Mode_Sync;
 		v.ArmReg			:= Arm_Sync;
-		
+        if ProcessSample_v then
+          v.StrData         := Str_Data;
+        end if;
+
+        
 		-- Masking trigger according to recording mode
 		case r.ModeReg is
 			when RecMode_Continuous_c => 
@@ -182,8 +195,7 @@ begin
 				TrigMasked_v	:= r.ArmReg;
 			when others => null;
 		end case;
-			
-		
+
 		-- Keep FifoVld high until data is written
 		v.DataFifoVld		:= r.DataFifoVld and not DataFifo_InRdy;
 		
@@ -191,7 +203,7 @@ begin
 		if ProcessSample_v then
 			v.TrigLatch				:= '0';
 		else
-			v.TrigLatch				:= r.TrigLatch or TrigMasked_v;
+          v.TrigLatch				:= r.TrigLatch or TrigMasked_v;
 		end if;
 		
 		-- Detect timestamp FIFO overflows
@@ -217,28 +229,31 @@ begin
 		end if;		
 		
 		-- Trigger handling and post trigger counter
-		if ProcessSample_v and r.RecEna = '1' then
+		if ProcessSample_v then
 			if r.PostTrigCnt /= 0 then
 				v.PostTrigCnt	:= r.PostTrigCnt - 1;
 				if r.PostTrigCnt = 1 then
 					v.DataFifoIsTrig	:= '1';
-					v.DataFifoVld		:= r.DataFifoVld or r.RecEna;
+					v.DataFifoVld		:= r.DataFifoVld or r.RecEna or r.PreRecEna;
 					v.RecEna			:= '0';	-- stop recording after frame
+                    v.PreRecEna         := '0';
 				end if;
 			elsif (r.TrigLatch = '1') or (TrigMasked_v = '1') then
 				-- Handle incoming trigger sample
 				if unsigned(PostTrigSpls_Sync) = 0 then
 					v.DataFifoIsTrig	:= '1';
-					v.DataFifoVld		:= r.DataFifoVld or r.RecEna;
+					v.DataFifoVld		:= r.DataFifoVld or r.RecEna or r.PreRecEna;
 					v.RecEna			:= '0';	-- stop recording after frame
+                    v.PreRecEna			:= '0';
 				else
-					v.PostTrigCnt	:= unsigned(PostTrigSpls_Sync);
+                  v.RecEna := '1';
+                  v.PostTrigCnt	:= unsigned(PostTrigSpls_Sync);
 				end if;
 			end if;
 		end if;
 		
-		-- Detect Timeout		
-		if Str_Vld = '1' then
+		-- Detect Timeout (only if data is stuck in conversion)		
+		if Str_Vld = '1' or r.WordCnt = 0 then
 			v.TimeoutCnt := 0;
 		else
 			if r.TimeoutCnt = TimeoutLimit_c then
@@ -254,40 +269,41 @@ begin
 			v.TLastCnt := std_logic_vector(unsigned(r.TLastCnt) + 1);
 		end if;
 	
-		-- Write because timeout occured (only if data is stuck in conversion)
-		if r.Timeout = '1' then
-			v.DataFifoVld	:= r.DataFifoVld or r.RecEna;
-			v.DataFifoIsTo	:= '1';
-			v.Timeout		:= '0';	-- reser timeout after data was flushed to the FIFO
-		end if;
-		-- Process input data
-		if ProcessSample_v and r.RecEna = '1' then
-			v.WordCnt := r.WordCnt + 1;
-			-- Write because 64-bits are ready
-			if r.WordCnt = WconvFactor_c-1 then	
-				v.DataFifoVld	:= r.DataFifoVld or r.RecEna;
-			end if;
-			v.DataSftReg((to_integer(r.WordCnt)+1)*StreamWidth_g-1 downto to_integer(r.WordCnt)*StreamWidth_g) := Str_Data;
-		end if;
-		-- Reset counter if data is being written to FIFO
-		if v.DataFifoVld = '1' then
-			v.WordCnt 		:= (others => '0');
-		end if;
+        -- Write because timeout occured
+        if r.Timeout = '1' then
+            v.DataFifoVld  := r.DataFifoVld or r.RecEna or r.PreRecEna;
+            v.DataFifoIsTo := '1';
+            v.Timeout      := '0';  -- reser timeout after data was flushed to the FIFO
+        end if;
+        
+        -- Process input data
+        if ProcessSample_v and (r.RecEna = '1' or r.PreRecEna = '1') then
+          v.WordCnt  := r.WordCnt + 1;
+          v.BytesCnt := r.BytesCnt + BytesIncr_c;
+          -- Write because 64-bits are ready
+          if r.WordCnt = WconvFactor_c-1 then
+            v.DataFifoVld := r.DataFifoVld or r.RecEna or r.PreRecEna;
+          end if;
+          -- If the pretrigger is disabled, use delayed data to compensate for trigger detection time
+          if PreTrigDisable_Sync = '1' then
+            v.DataSftReg((to_integer(r.WordCnt)+1)*StreamWidth_g-1 downto to_integer(r.WordCnt)*StreamWidth_g) := r.StrData;
+          else
+            v.DataSftReg((to_integer(r.WordCnt)+1)*StreamWidth_g-1 downto to_integer(r.WordCnt)*StreamWidth_g) := Str_Data;
+          end if;
+        end if;
+        -- Reset counter if data is being written to FIFO
+        if v.DataFifoVld = '1' then
+          v.WordCnt  := (others => '0');
+          v.BytesCnt := (others => '0');
+        end if;
 		
 		-- Convert word counter to byte counter
 		v.DataFifoBytes	:= (others => '0');
 		if r.Timeout = '1' then
-			AddSamples_v := 0;
+          v.DataFifoBytes := r.BytesCnt;
 		else
-			AddSamples_v := 1;
+          v.DataFifoBytes := r.BytesCnt + BytesIncr_c;
 		end if;
-		case StreamWidth_g is
-			when 8 	=> v.DataFifoBytes := r.WordCnt + AddSamples_v;
-			when 16	=> v.DataFifoBytes := (r.WordCnt + AddSamples_v) & "0";
-			when 32	=> v.DataFifoBytes := (r.WordCnt + AddSamples_v) & "00";
-			when 64	=> v.DataFifoBytes := (r.WordCnt + AddSamples_v) & "000";
-			when others => null;
-		end case;
 		
 		-- Handle Arming Logic
 		if (r.ModeReg /= Mode_Sync) or (r.ModeReg = RecMode_Continuous_c) or (r.ModeReg = RecMode_ManuelMode_c) then -- reset on mode change!
@@ -303,17 +319,21 @@ begin
 			when RecMode_Continuous_c |
 				 RecMode_TriggerMask_c => 
 				-- always enabled
-				v.RecEna	:= '1';		
-			when RecMode_SingleShot_c |
-				 RecMode_ManuelMode_c =>
+              v.PreRecEna := not PreTrigDisable_Sync;
+          when RecMode_SingleShot_c =>
+              if v.ArmReg = '1' then
+                  v.PreRecEna := not PreTrigDisable_Sync;
+              end if;
+          when RecMode_ManuelMode_c =>
 				-- enable on arming (disable happens after recording)
 				if v.ArmReg = '1' then
-					v.RecEna	:= '1';
+                  v.PreRecEna := '1';
 				end if;
 			when others => null;
 		end case;
 		if r.ModeReg /= Mode_Sync then
-			v.RecEna := '0';
+          v.RecEna := '0';
+          v.PreRecEna := '0';
 		end if;		
 		
 		-- *** Assign to signal ***
@@ -321,28 +341,30 @@ begin
 		
 	end process;
 	
-	--------------------------------------------
-	-- Sequential Process
-	--------------------------------------------
-	p_seq : process(Str_Clk)
-	begin	
-		if rising_edge(Str_Clk) then	
-			r <= r_next;
-			if Str_Rst = '1' then	
-				r.WordCnt		<= (others => '0');
-				r.TrigLatch		<= '0';
-				r.TimeoutCnt	<= 0;
-				r.Timeout		<= '0';
-				r.PostTrigCnt	<= (others => '0');
-				r.TLastCnt		<= (others => '0');
-				r.TsOverflow	<= '0';
-				r.HasTlastSync	<= (others => '0');
-				r.IsArmed		<= '0';
-				r.RecEna		<= '0';
-				r.ArmReg		<= '0';
-			end if;
-		end if;
-	end process;
+    --------------------------------------------
+    -- Sequential Process
+    --------------------------------------------
+    p_seq : process(Str_Clk)
+    begin
+        if rising_edge(Str_Clk) then
+            r <= r_next;
+            if Str_Rst = '1' then
+              r.WordCnt      <= (others => '0');
+              r.BytesCnt     <= (others => '0');
+              r.TrigLatch    <= '0';
+              r.TimeoutCnt   <= 0;
+              r.Timeout      <= '0';
+              r.PostTrigCnt  <= (others => '0');
+              r.TLastCnt     <= (others => '0');
+              r.TsOverflow   <= '0';
+              r.HasTlastSync <= (others => '0');
+              r.IsArmed      <= '0';
+              r.RecEna       <= '0';
+              r.PreRecEna    <= '0';
+              r.ArmReg       <= '0';
+            end if;
+        end if;
+    end process;
 	
 	--------------------------------------------
 	-- Output Side TLAST handling
@@ -387,24 +409,26 @@ begin
 	end process;
 	Daq_HasLast <= Daq_HasLast_I;
 
-	--------------------------------------------
-	-- Component Instantiation
-	--------------------------------------------
-	-- *** Register Interface clock crossings ***
-	i_cc_reg_status : entity work.psi_common_status_cc
-		generic map (
-			DataWidth_g		=> 34
-		)
-		port map (
-			ClkA					=> ClkReg,
-			RstInA					=> '0',
-			DataA(31 downto 0)		=> PostTrigSpls,
-			DataA(33 downto 32)		=> Mode,
-			ClkB					=> Str_Clk,
-			RstInB					=> Str_Rst,
-			DataB(31 downto 0)		=> PostTrigSpls_Sync,
-			DataB(33 downto 32)		=> Mode_Sync
-		);
+    --------------------------------------------
+    -- Component Instantiation
+    --------------------------------------------
+    -- *** Register Interface clock crossings ***
+    i_cc_reg_status : entity work.psi_common_status_cc
+        generic map (
+            DataWidth_g => 35
+        )
+        port map (
+            ClkA                => ClkReg,
+            RstInA              => '0',
+            DataA(31 downto 0)  => PostTrigSpls,
+            DataA(33 downto 32) => Mode,
+            DataA(34)           => PreTrigDisable,
+            ClkB                => Str_Clk,
+            RstInB              => Str_Rst,
+            DataB(31 downto 0)  => PostTrigSpls_Sync,
+            DataB(33 downto 32) => Mode_Sync,
+            DataB(34)           => PreTrigDisable_Sync
+        );
 		
 	i_cc_status : entity work.psi_common_bit_cc
 		generic map (
@@ -412,7 +436,7 @@ begin
 		)
 		port map (
 			BitsA(0)	=> r.IsArmed,
-			BitsA(1)	=> r.RecEna,
+			BitsA(1)	=> r.RecEna or r.PreRecEna,
 			ClkB		=> ClkReg,
 			BitsB(0)	=> IsArmed,
 			BitsB(1)	=> IsRecording
@@ -473,16 +497,17 @@ begin
 		);
 	
 	
-	-- Data FIFO
-	DataFifo_InData(63 downto 0) 	<= r.DataSftReg;
-	DataFifo_InData(67 downto 64)	<= std_logic_vector(r.DataFifoBytes);
-	DataFifo_InData(68)				<= r.DataFifoIsTo;
-	DataFifo_InData(69)				<= r.DataFifoIsTrig;
+    -- Data FIFO
+    DataFifo_InData(MemoryBusWidth_c-1+2 downto 2) <= r.DataSftReg;
+    DataFifo_InData(MemoryBusWidth_c+Input2Daq_Data_Bytes_Len+2-1
+                    downto MemoryBusWidth_c+2) <= std_logic_vector(r.DataFifoBytes);
+    DataFifo_InData(0) <= r.DataFifoIsTo;
+    DataFifo_InData(1) <= r.DataFifoIsTrig;
 	
 	
 	i_dfifo : entity work.psi_common_async_fifo 
 		generic map (
-			Width_g			=> 70,
+			Width_g			=> DataFifo_Width_c,
 			Depth_g			=> StreamBuffer_g,
 			AlmFullOn_g		=> false,
 			AlmEmptyOn_g	=> false
@@ -504,7 +529,7 @@ begin
 	-- An additional pipeline stage after the FIFO is required for timing reasons
 	i_dplstage : entity work.psi_common_pl_stage
 		generic map (
-			Width_g		=> 70,
+			Width_g		=> DataFifo_Width_c,
 			UseRdy_g	=> true
 		)
 		port map (	
@@ -519,13 +544,13 @@ begin
 		);
 	Str_Rdy <= DataFifo_InRdy;
 		
-	Daq_Data_I.Data		<= DataFifo_OutData(63 downto 0);
-	Daq_Data_I.Bytes	<= DataFifo_OutData(67 downto 64);
-	Daq_Data_I.IsTo		<= DataFifo_OutData(68);
-	Daq_Data_I.IsTrig	<= DataFifo_OutData(69);
-	Daq_Data_I.Last		<= Daq_Data_I.IsTo	or Daq_Data_I.IsTrig;
-	Daq_Data			<= Daq_Data_I;
-	Daq_Vld				<= Daq_Vld_I;
+    Daq_Data_I.Data   <= DataFifo_OutData(MemoryBusWidth_c-1+2 downto 2);
+    Daq_Data_I.Bytes  <= DataFifo_OutData(MemoryBusWidth_c+Input2Daq_Data_Bytes_Len+2-1 downto MemoryBusWidth_c+2);
+    Daq_Data_I.IsTo   <= DataFifo_OutData(0);
+    Daq_Data_I.IsTrig <= DataFifo_OutData(1);
+    Daq_Data_I.Last   <= Daq_Data_I.IsTo or Daq_Data_I.IsTrig;
+    Daq_Data          <= Daq_Data_I;
+    Daq_Vld           <= Daq_Vld_I;
 	
 	
 	-- Timestamp FIFO
@@ -572,7 +597,7 @@ begin
 	p_assert : process(ClkMem)
 	begin
 		if rising_edge(ClkMem) then
-			assert StreamWidth_g = 8 or StreamWidth_g = 16 or StreamWidth_g = 32 or StreamWidth_g = 64 report "###ERROR###: psi_ms_daq_input: StreamWidth_g must be 8, 16, 32 or 64" severity error;
+			assert MemoryBusWidth_c mod StreamWidth_g = 0 report "###ERROR###: psi_ms_daq_input: StreamWidth_g must be modulo division of MemoryBusWidth_c" severity error;
 		end if;
 	end process;
 	

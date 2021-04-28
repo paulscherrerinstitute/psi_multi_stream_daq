@@ -77,6 +77,7 @@ entity psi_ms_daq_reg_axi is
 		IsRecording		: in	std_logic_vector(Streams_g-1 downto 0);
 		PostTrig		: out	t_aslv32(Streams_g-1 downto 0);
 		RecMode			: out	t_aslv2(Streams_g-1 downto 0);
+        PreTrigDisable  : out   std_logic_vector(Streams_g-1 downto 0);
 		IrqOut			: out	std_logic;
 		
 		-- Memory Interfae Clock domain control singals
@@ -99,22 +100,23 @@ entity psi_ms_daq_reg_axi is
 end entity;
 
 architecture rtl of psi_ms_daq_reg_axi is
-	-- Two process method
-	type two_process_r is record
-		Reg_Gcfg_Ena		: std_logic;
-		Reg_Gcfg_IrqEna		: std_logic;
-		Reg_IrqVec			: std_logic_vector(Streams_g-1 downto 0);
-		Reg_IrqEna			: std_logic_vector(Streams_g-1 downto 0);
-		Reg_StrEna			: std_logic_vector(Streams_g-1 downto 0);	
-		Reg_PostTrig		: t_aslv32(Streams_g-1 downto 0);
-		Reg_Mode_Recm		: t_aslv2(Streams_g-1 downto 0);
-		Reg_Mode_Arm		: std_logic_vector(Streams_g-1 downto 0);
-		Irq					: std_logic;
-		RegRdval			: std_logic_vector(31 downto 0);
-		AddrReg				: std_logic_vector(15 downto 0);
-		MaxLvlClr			: std_logic_vector(Streams_g-1 downto 0);
-	end record;
-	signal r, r_next : two_process_r;
+    -- Two process method
+    type two_process_r is record
+        Reg_Gcfg_Ena            : std_logic;
+        Reg_Gcfg_IrqEna         : std_logic;
+        Reg_IrqVec              : std_logic_vector(Streams_g-1 downto 0);
+        Reg_IrqEna              : std_logic_vector(Streams_g-1 downto 0);
+        Reg_StrEna              : std_logic_vector(Streams_g-1 downto 0);
+        Reg_PostTrig            : t_aslv32(Streams_g-1 downto 0);
+        Reg_Mode_Recm           : t_aslv2(Streams_g-1 downto 0);
+        Reg_Mode_Arm            : std_logic_vector(Streams_g-1 downto 0);
+        Reg_Mode_PreTrigDisable : std_logic_vector(Streams_g-1 downto 0);
+        Irq                     : std_logic;
+        RegRdval                : std_logic_vector(31 downto 0);
+        AddrReg                 : std_logic_vector(15 downto 0);
+        MaxLvlClr               : std_logic_vector(Streams_g-1 downto 0);
+    end record;
+    signal r, r_next : two_process_r;
 	
 	constant DwWrite_c	: std_logic_vector(3 downto 0)	:= "1111";
 	
@@ -224,18 +226,20 @@ begin
 				v.RegRdval	:= r.Reg_PostTrig(Stream_v);
 			end if;			
 			
-			-- MODEn / LASTWINn
-			if AccAddr(3 downto 0) = X"8" then
-				if AccWr(0) = '1' then
-					v.Reg_Mode_Recm(Stream_v) := AccWrData(1 downto 0);
-				end if;
-				if AccWr(1) = '1' then
-					v.Reg_Mode_Arm(Stream_v) := AccWrData(8);
-				end if;
-				v.RegRdval(1 downto 0)	:= r.Reg_Mode_Recm(Stream_v);
-				v.RegRdval(8)			:= IsArmed(Stream_v);
-				v.RegRdval(16)			:= IsRecording(Stream_v);
-			end if;
+          -- MODEn / LASTWINn
+            if AccAddr(3 downto 0) = X"8" then
+                if AccWr(0) = '1' then
+                  v.Reg_Mode_Recm(Stream_v)           := AccWrData(1 downto 0);
+                  v.Reg_Mode_PreTrigDisable(Stream_v) := AccWrData(2);
+                end if;
+                if AccWr(1) = '1' then
+                    v.Reg_Mode_Arm(Stream_v) := AccWrData(8);
+                end if;
+                v.RegRdval(1 downto 0) := r.Reg_Mode_Recm(Stream_v);
+                v.RegRdval(2)          := r.Reg_Mode_PreTrigDisable(Stream_v);
+                v.RegRdval(8)          := IsArmed(Stream_v);
+                v.RegRdval(16)         := IsRecording(Stream_v);
+            end if;
 			
 			-- LASTWINn
 			if AccAddr(3 downto 0) = X"C" then
@@ -291,27 +295,29 @@ begin
 	PostTrig		<= r.Reg_PostTrig;
 	Arm				<= r.Reg_Mode_Arm;
 	RecMode			<= r.Reg_Mode_Recm;
+    PreTrigDisable  <= r.Reg_Mode_PreTrigDisable;
 	
-	--------------------------------------------
-	-- Sequential Process
-	--------------------------------------------
-	p_seq : process(S_Axi_Aclk)
-	begin	
-		if rising_edge(S_Axi_Aclk) then	
-			r <= r_next;
-			if A_Axi_Areset = '1' then
-				r.Reg_Gcfg_Ena		<= '0';
-				r.Reg_Gcfg_IrqEna	<= '0';
-				r.Reg_IrqVec		<= (others => '0');
-				r.Reg_IrqEna		<= (others => '0');
-				r.Reg_StrEna		<= (others => '0');
-				r.Irq				<= '0';
-				r.Reg_PostTrig		<= (others => (others => '0'));
-				r.Reg_Mode_Recm		<= (others => (others => '0'));
-				r.Reg_Mode_Arm		<= (others => '0');
-			end if;
-		end if;
-	end process;
+    --------------------------------------------
+    -- Sequential Process
+    --------------------------------------------
+    p_seq : process(S_Axi_Aclk)
+    begin
+        if rising_edge(S_Axi_Aclk) then
+            r <= r_next;
+            if A_Axi_Areset = '1' then
+                r.Reg_Gcfg_Ena            <= '0';
+                r.Reg_Gcfg_IrqEna         <= '0';
+                r.Reg_IrqVec              <= (others => '0');
+                r.Reg_IrqEna              <= (others => '0');
+                r.Reg_StrEna              <= (others => '0');
+                r.Irq                     <= '0';
+                r.Reg_PostTrig            <= (others => (others => '0'));
+                r.Reg_Mode_Recm           <= (others => (others => '0'));
+                r.Reg_Mode_Arm            <= (others => '0');
+                r.Reg_Mode_PreTrigDisable <= (others => '0');
+            end if;
+        end if;
+    end process;
 	
 	--------------------------------------------
 	-- Maximum Level Latching (MemClk)
