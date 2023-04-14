@@ -33,8 +33,8 @@ Alternatively the repository [psi\_fpga\_all](https://github.com/paulscherrerins
 * TCL
   * [PsiSim](https://github.com/paulscherrerinstitute/PsiSim) (2.1.0 or higher, for development only)
 * VHDL
-  * [psi\_common](https://github.com/paulscherrerinstitute/psi_common) (2.5.0 or higher)
-  * [psi\_tb](https://github.com/paulscherrerinstitute/psi_tb) (2.2.2 or higher, for development only)
+  * [psi\_common](https://github.com/paulscherrerinstitute/psi_common) (3.0.0 or higher)
+  * [psi\_tb](https://github.com/paulscherrerinstitute/psi_tb) (3.0.0 or higher, for development only)
   * [**psi\_multi\_stream\_daq**](https://github.com/paulscherrerinstitute/psi_multi_stream_daq)
 
 <!-- END OF PARSED SECTION -->
