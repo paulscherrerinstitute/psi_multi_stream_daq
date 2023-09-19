@@ -174,12 +174,13 @@ architecture rtl of psi_ms_daq_axi is
   signal MemSm_Done : std_logic;
 
   -- Configuration
-  signal Cfg_StrEna   : std_logic_vector(Streams_g - 1 downto 0);
-  signal Cfg_GlbEna   : std_logic;
-  signal Cfg_PostTrig : t_aslv32(Streams_g - 1 downto 0);
-  signal Cfg_Arm      : std_logic_vector(Streams_g - 1 downto 0);
-  signal Cfg_RecMode  : t_aslv2(Streams_g - 1 downto 0);
-
+  signal Cfg_StrEna    : std_logic_vector(Streams_g - 1 downto 0);
+  signal Cfg_GlbEna    : std_logic;
+  signal Cfg_PostTrig  : t_aslv32(Streams_g - 1 downto 0);
+  signal Cfg_Arm       : std_logic_vector(Streams_g - 1 downto 0);
+  signal Cfg_RecMode   : t_aslv2(Streams_g - 1 downto 0);
+  signal Cfg_ToDisable : std_logic_vector(Streams_g -1 downto 0);
+  signal Cfg_FrameTo   : std_logic_vector(Streams_g -1 downto 0);
   -- Status
   signal Stat_StrIrq      : std_logic_vector(Streams_g - 1 downto 0);
   signal Stat_StrLastWin  : WinType_a(Streams_g - 1 downto 0);
@@ -204,7 +205,7 @@ begin
 
   --------------------------------------------
   -- Register Interface
-  --------------------------------------------	
+  --------------------------------------------
   i_reg : entity work.psi_ms_daq_reg_axi
     generic map(
       Streams_g         => Streams_g,
@@ -255,6 +256,8 @@ begin
       IsArmed       => Stat_IsArmed,
       IsRecording   => Stat_IsRecording,
       RecMode       => Cfg_RecMode,
+      ToDisable     => Cfg_ToDisable,
+      FrameTo       => Cfg_FrameTo,
       ClkMem        => M_Axi_Aclk,
       RstMem        => M_Axi_Areset,
       CtxStr_Cmd    => CtxStr_Cmd,
@@ -270,7 +273,7 @@ begin
 
   --------------------------------------------
   -- Input Logic Instantiation
-  --------------------------------------------	
+  --------------------------------------------
   g_input : for str in 0 to Streams_g - 1 generate
     signal InRst    : std_logic;
     signal StrInput : std_logic_vector(StreamWidth_c(str) - 1 downto 0);
@@ -303,6 +306,8 @@ begin
         Arm          => Cfg_Arm(str),
         IsArmed      => Stat_IsArmed(str),
         IsRecording  => Stat_IsRecording(str),
+        ToDisable    => Cfg_ToDisable(str),
+        FrameTo      => Cfg_FrameTo(str),
         ClkMem       => M_Axi_Aclk,
         RstMem       => InRst,
         Daq_Vld      => InpDma_Vld(str),
@@ -359,7 +364,7 @@ begin
 
   --------------------------------------------
   -- DMA Engine
-  --------------------------------------------	
+  --------------------------------------------
   i_dma : entity work.psi_ms_daq_daq_dma
     generic map(
       Streams_g => Streams_g
@@ -387,7 +392,7 @@ begin
 
   --------------------------------------------
   -- Memory Interface
-  --------------------------------------------	
+  --------------------------------------------
   i_memif : entity work.psi_ms_daq_axi_if
     generic map(
       AxiDataWidth_g          => AxiDataWidth_g,
@@ -443,4 +448,3 @@ begin
     );
 
 end;
-
