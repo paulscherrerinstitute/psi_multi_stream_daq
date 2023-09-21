@@ -51,7 +51,9 @@ entity psi_ms_daq_input is
     Mode         : in  RecMode_t;       -- $$ proc=daq $$
     Arm          : in  std_logic;       -- $$ proc=stream $$
     IsArmed      : out std_logic;       -- $$ proc=stream $$
-    IsRecording  : out std_logic;       -- $$ proc=stream $$		
+    IsRecording  : out std_logic;       -- $$ proc=stream $$
+    ToDisable    : in  std_logic;       -- $$ proc=stream $$
+    FrameTo      : in  std_logic;       -- $$ proc=stream $$
 
     -- DAQ control signals
     ClkMem       : in  std_logic;       -- $$ type=clk; freq=200e6; proc=daq,stream $$
@@ -104,6 +106,7 @@ architecture rtl of psi_ms_daq_input is
     HasTlastSync   : std_logic_vector(0 to 1);
     IsArmed        : std_logic;
     RecEna         : std_logic;
+    FrameInProgr   : std_logic;
   end record;
   signal r, r_next : two_process_r;
 
@@ -143,6 +146,8 @@ architecture rtl of psi_ms_daq_input is
   signal Arm_Sync          : std_logic;
   signal RstReg_Sync       : std_logic;
   signal RstAcq_Sync       : std_logic;
+  signal ToDisable_Sync    : std_logic;
+  signal FrameTo_Sync      : std_logic;
 
 begin
   --------------------------------------------
@@ -233,8 +238,17 @@ begin
       end if;
     end if;
 
-    -- Detect Timeout		
+    -- Frame in progress
     if Str_Vld = '1' then
+      if Str_Trig = '1' then
+        v.FrameInProgr := '0';
+      else
+        v.FrameInProgr := '1';
+      end if;
+    end if;
+
+    -- Detect Timeout
+    if Str_Vld = '1' or ToDisable_Sync = '1' or (FrameTo_Sync = '1' or r.FrameInProgr = '0') then
       v.TimeoutCnt := 0;
     else
       if r.TimeoutCnt = TimeoutLimit_c then
@@ -336,6 +350,7 @@ begin
         r.IsArmed      <= '0';
         r.RecEna       <= '0';
         r.ArmReg       <= '0';
+        r.FrameInProgr <= '0';
       end if;
     end if;
   end process;
@@ -389,17 +404,21 @@ begin
   -- *** Register Interface clock crossings ***
   i_cc_reg_status : entity work.psi_common_status_cc
     generic map(
-      width_g => 34
+      width_g => 36
     )
     port map(
       a_clk_i               => ClkReg,
       a_rst_i               => '0',
       a_dat_i(31 downto 0)  => PostTrigSpls,
       a_dat_i(33 downto 32) => Mode,
+      a_dat_i(34)           => ToDisable,
+      a_dat_i(35)           => FrameTo,
       b_clk_i               => Str_Clk,
       b_rst_i               => Str_Rst,
       b_dat_o(31 downto 0)  => PostTrigSpls_Sync,
-      b_dat_o(33 downto 32) => Mode_Sync
+      b_dat_o(33 downto 32) => Mode_Sync,
+      b_dat_o(34)           => ToDisable_Sync,
+      b_dat_o(35)           => FrameTo_Sync
     );
 
   i_cc_status : entity work.psi_common_bit_cc
@@ -450,7 +469,7 @@ begin
     );
   Str_Rst <= RstReg_Sync or RstAcq_Sync;
 
-  -- *** Acquisition Clock Crossing ***	
+  -- *** Acquisition Clock Crossing ***
   -- Clock crossing for reset and TLAST counter
   i_cc : entity work.psi_common_status_cc
     generic map(
@@ -567,4 +586,3 @@ begin
   end process;
 
 end;
-

@@ -27,7 +27,7 @@ entity psi_ms_daq_reg_axi is
     AxiSlaveIdWidth_g : integer
   );
   port(
-    -- AXI Control Signals 
+    -- AXI Control Signals
     S_Axi_Aclk    : in  std_logic;
     S_Axi_Aresetn : in  std_logic;
     -- AXI Read address channel
@@ -76,6 +76,8 @@ entity psi_ms_daq_reg_axi is
     IsRecording   : in  std_logic_vector(Streams_g - 1 downto 0);
     PostTrig      : out t_aslv32(Streams_g - 1 downto 0);
     RecMode       : out t_aslv2(Streams_g - 1 downto 0);
+    ToDisable     : out std_logic_vector(Streams_g - 1 downto 0);
+    FrameTo       : out std_logic_vector(Streams_g - 1 downto 0);
     IrqOut        : out std_logic;
     -- Memory Interfae Clock domain control singals
     ClkMem        : in  std_logic;
@@ -97,18 +99,20 @@ end entity;
 architecture rtl of psi_ms_daq_reg_axi is
   -- Two process method
   type two_process_r is record
-    Reg_Gcfg_Ena    : std_logic;
-    Reg_Gcfg_IrqEna : std_logic;
-    Reg_IrqVec      : std_logic_vector(Streams_g - 1 downto 0);
-    Reg_IrqEna      : std_logic_vector(Streams_g - 1 downto 0);
-    Reg_StrEna      : std_logic_vector(Streams_g - 1 downto 0);
-    Reg_PostTrig    : t_aslv32(Streams_g - 1 downto 0);
-    Reg_Mode_Recm   : t_aslv2(Streams_g - 1 downto 0);
-    Reg_Mode_Arm    : std_logic_vector(Streams_g - 1 downto 0);
-    Irq             : std_logic;
-    RegRdval        : std_logic_vector(31 downto 0);
-    AddrReg         : std_logic_vector(15 downto 0);
-    MaxLvlClr       : std_logic_vector(Streams_g - 1 downto 0);
+    Reg_Gcfg_Ena       : std_logic;
+    Reg_Gcfg_IrqEna    : std_logic;
+    Reg_IrqVec         : std_logic_vector(Streams_g - 1 downto 0);
+    Reg_IrqEna         : std_logic_vector(Streams_g - 1 downto 0);
+    Reg_StrEna         : std_logic_vector(Streams_g - 1 downto 0);
+    Reg_PostTrig       : t_aslv32(Streams_g - 1 downto 0);
+    Reg_Mode_Recm      : t_aslv2(Streams_g - 1 downto 0);
+    Reg_Mode_Arm       : std_logic_vector(Streams_g - 1 downto 0);
+    Reg_Mode_ToDisable : std_logic_vector(Streams_g - 1 downto 0);
+    Reg_Mode_FrameTo   : std_logic_vector(Streams_g - 1 downto 0);
+    Irq                : std_logic;
+    RegRdval           : std_logic_vector(31 downto 0);
+    AddrReg            : std_logic_vector(15 downto 0);
+    MaxLvlClr          : std_logic_vector(Streams_g - 1 downto 0);
   end record;
   signal r, r_next : two_process_r;
 
@@ -228,9 +232,15 @@ begin
         if AccWr(1) = '1' then
           v.Reg_Mode_Arm(Stream_v) := AccWrData(8);
         end if;
+        if AccWr(3) = '1' then
+          v.Reg_Mode_ToDisable(Stream_v) := AccWrData(24);
+          v.Reg_Mode_FrameTo(Stream_v)   := AccWrData(25);
+        end if;
         v.RegRdval(1 downto 0) := r.Reg_Mode_Recm(Stream_v);
         v.RegRdval(8)          := IsArmed(Stream_v);
         v.RegRdval(16)         := IsRecording(Stream_v);
+        v.RegRdval(24)         := r.Reg_Mode_ToDisable(Stream_v);
+        v.RegRdval(25)         := r.Reg_Mode_FrameTo(Stream_v);
       end if;
 
       -- LASTWINn
@@ -280,10 +290,12 @@ begin
   end process;
 
   -- *** Registered Outputs ***
-  IrqOut   <= r.Irq;
-  PostTrig <= r.Reg_PostTrig;
-  Arm      <= r.Reg_Mode_Arm;
-  RecMode  <= r.Reg_Mode_Recm;
+  IrqOut    <= r.Irq;
+  PostTrig  <= r.Reg_PostTrig;
+  Arm       <= r.Reg_Mode_Arm;
+  RecMode   <= r.Reg_Mode_Recm;
+  ToDisable <= r.Reg_Mode_ToDisable;
+  FrameTo   <= r.Reg_Mode_FrameTo;
 
   --------------------------------------------
   -- Sequential Process
@@ -293,15 +305,17 @@ begin
     if rising_edge(S_Axi_Aclk) then
       r <= r_next;
       if A_Axi_Areset = '1' then
-        r.Reg_Gcfg_Ena    <= '0';
-        r.Reg_Gcfg_IrqEna <= '0';
-        r.Reg_IrqVec      <= (others => '0');
-        r.Reg_IrqEna      <= (others => '0');
-        r.Reg_StrEna      <= (others => '0');
-        r.Irq             <= '0';
-        r.Reg_PostTrig    <= (others => (others => '0'));
-        r.Reg_Mode_Recm   <= (others => (others => '0'));
-        r.Reg_Mode_Arm    <= (others => '0');
+        r.Reg_Gcfg_Ena       <= '0';
+        r.Reg_Gcfg_IrqEna    <= '0';
+        r.Reg_IrqVec         <= (others => '0');
+        r.Reg_IrqEna         <= (others => '0');
+        r.Reg_StrEna         <= (others => '0');
+        r.Irq                <= '0';
+        r.Reg_PostTrig       <= (others => (others => '0'));
+        r.Reg_Mode_Recm      <= (others => (others => '0'));
+        r.Reg_Mode_Arm       <= (others => '0');
+        r.Reg_Mode_ToDisable <= (others => '0');
+        r.Reg_Mode_FrameTo   <= (others => '0');
       end if;
     end if;
   end process;
@@ -329,7 +343,7 @@ begin
 
   --------------------------------------------
   -- Component Instantiations
-  --------------------------------------------	
+  --------------------------------------------
 
   -- *** AXI Interface ***
   i_axi : entity work.psi_common_axi_slave_ipif
