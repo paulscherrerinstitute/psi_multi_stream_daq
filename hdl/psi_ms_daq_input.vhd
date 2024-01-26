@@ -508,7 +508,7 @@ begin
       in_rdy_o  => DataFifo_InRdy,
       out_dat_o => DataFifo_PlData,
       out_vld_o => DataFifo_PlVld,
-      out_rdy_o => DataFifo_PlRdy,
+      out_rdy_i => DataFifo_PlRdy,
       out_lvl_o => DataFifo_Level
     );
 
@@ -563,7 +563,7 @@ begin
         in_empty_o => TsFifo_Empty,
         out_dat_o  => TsFifo_RdData,
         out_vld_o  => Ts_Vld_I,
-        out_rdy_o  => Ts_Rdy
+        out_rdy_i  => Ts_Rdy
       );
     Ts_Vld  <= Ts_Vld_I;
     -- Replace data by 0xFF... if no valid timestamp is available
