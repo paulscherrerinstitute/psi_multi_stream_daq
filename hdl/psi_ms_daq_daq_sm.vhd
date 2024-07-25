@@ -576,11 +576,12 @@ begin
     if (unsigned(r.TfDoneCnt) /= 0) and (IrqFifoEmpty = '0') then
       v.IrqFifoRead := '1';
       v.TfDoneCnt   := std_logic_vector(unsigned(v.TfDoneCnt) - 1);
-      -- Generate IRQ if required
-      if IrqFifoGenIrq = '1' then
-        v.StrIrq(to_integer(unsigned(IrqFifoStream)))     := '1';
-        v.StrLastWin(to_integer(unsigned(IrqFifoStream))) := std_logic_vector(resize(unsigned(IrqLastWinNr), 5));
-      end if;
+    end if;
+
+    -- Generate IRQ if required
+    if IrqFifoGenIrq = '1' and r.IrqFifoRead = '1' then
+      v.StrIrq(to_integer(unsigned(IrqFifoStream)))     := '1';
+      v.StrLastWin(to_integer(unsigned(IrqFifoStream))) := std_logic_vector(resize(unsigned(IrqLastWinNr), 5));
     end if;
 
     -- *** Assign to signal ***
