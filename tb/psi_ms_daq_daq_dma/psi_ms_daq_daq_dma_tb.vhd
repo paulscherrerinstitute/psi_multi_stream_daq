@@ -52,6 +52,7 @@ end entity;
 architecture sim of psi_ms_daq_daq_dma_tb is
 	-- *** Fixed Generics ***
 	constant Streams_g : positive := 4;
+	constant IntDataWidth_g : positive := 64;
 	
 	-- *** Not Assigned Generics (default values) ***
 	
@@ -80,7 +81,7 @@ architecture sim of psi_ms_daq_daq_dma_tb is
 	signal DaqSm_HasLast : std_logic_vector(Streams_g-1 downto 0) := (others => '0');
 	signal Inp_Vld : std_logic_vector(Streams_g-1 downto 0) := (others => '0');
 	signal Inp_Rdy : std_logic_vector(Streams_g-1 downto 0) := (others => '0');
-	signal Inp_Data : Input2Daq_Data_a(Streams_g-1 downto 0);
+	signal Inp_Data : Input2Daq_Data_a(Streams_g - 1 downto 0)(Data(IntDataWidth_g-1 downto 0), Bytes(log2ceil(IntDataWidth_g/8) downto 0));
 	signal Mem_CmdAddr : std_logic_vector(31 downto 0) := (others => '0');
 	signal Mem_CmdSize : std_logic_vector(31 downto 0) := (others => '0');
 	signal Mem_CmdVld : std_logic := '0';

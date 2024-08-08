@@ -87,9 +87,12 @@ architecture sim of psi_ms_daq_input_tb is
 	signal Mode : RecMode_t := (others => '0');
 	signal Arm : std_logic := '0';
 	signal IsArmed : std_logic := '0';
+	signal IsRecording : std_logic := '0';
+	signal ToDisable : std_logic := '0';
+	signal FrameTo : std_logic := '0';
 	signal Daq_Vld : std_logic := '0';
 	signal Daq_Rdy : std_logic := '0';
-	signal Daq_Data : Input2Daq_Data_t;
+	signal Daq_Data : Input2Daq_Data_t(Data(IntDataWidth_g-1 downto 0), Bytes(log2ceil(IntDataWidth_g/8) downto 0));
 	signal Daq_Level : std_logic_vector(15 downto 0) := (others => '0');
 	signal Daq_HasLast : std_logic := '0';
 	signal Ts_Vld : std_logic := '0';
@@ -122,6 +125,9 @@ begin
 			Mode => Mode,
 			Arm => Arm,
 			IsArmed => IsArmed,
+			IsRecording => IsRecording,
+			ToDisable => ToDisable,
+			FrameTo => FrameTo,
 			ClkMem => ClkMem,
 			RstMem => RstMem,
 			Daq_Vld => Daq_Vld,

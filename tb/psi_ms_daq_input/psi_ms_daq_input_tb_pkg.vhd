@@ -34,6 +34,7 @@ package psi_ms_daq_input_tb_pkg is
 	------------------------------------------------------------
 	-- Not exported Generics
 	------------------------------------------------------------
+	constant IntDataWidth_g : positive := 64;
 	constant StreamBuffer_g : positive := 32;
 	constant StreamClkFreq_g : real := 125.0e6;
 	constant StreamTsFifoDepth_g : positive := 8;
@@ -63,7 +64,7 @@ package psi_ms_daq_input_tb_pkg is
 								signal 	Clk 		: in 	std_logic;
 								signal 	Daq_Vld 	: in 	std_logic;
 								signal 	Daq_Rdy 	: inout std_logic;
-								signal 	Daq_Data 	: in 	Input2Daq_Data_t;
+								signal 	Daq_Data 	: in 	Input2Daq_Data_t(Data(IntDataWidth_g-1 downto 0), Bytes(log2ceil(IntDataWidth_g/8) downto 0));
 								signal 	Ts_Vld		: in 	std_logic;
 								signal 	Ts_Rdy		: inout std_logic;
 								signal 	Ts_Data		: in 	std_logic_vector;
@@ -124,7 +125,7 @@ package body psi_ms_daq_input_tb_pkg is
 								signal 	Clk 		: in 	std_logic;
 								signal 	Daq_Vld 	: in 	std_logic;
 								signal 	Daq_Rdy 	: inout std_logic;
-								signal 	Daq_Data 	: in 	Input2Daq_Data_t;
+								signal 	Daq_Data 	: in 	Input2Daq_Data_t(Data(IntDataWidth_g-1 downto 0), Bytes(log2ceil(IntDataWidth_g/8) downto 0));
 								signal 	Ts_Vld		: in 	std_logic;
 								signal 	Ts_Rdy		: inout std_logic;
 								signal 	Ts_Data		: in 	std_logic_vector;

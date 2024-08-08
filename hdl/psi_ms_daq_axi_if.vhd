@@ -19,6 +19,7 @@ use work.psi_common_math_pkg.all;
 ------------------------------------------------------------------------------
 entity psi_ms_daq_axi_if is
   generic(
+    IntDataWidth_g          : positive                 := 64;
     AxiDataWidth_g          : natural range 64 to 1024 := 64;
     AxiMaxBeats_g           : natural range 1 to 256   := 256;
     AxiMaxOpenTrasactions_g : natural range 1 to 8     := 8;
@@ -37,7 +38,7 @@ entity psi_ms_daq_axi_if is
     Cmd_Vld       : in  std_logic;
     Cmd_Rdy       : out std_logic;
     -- Write Data
-    Dat_Data      : in  std_logic_vector(63 downto 0);
+    Dat_Data      : in  std_logic_vector(IntDataWidth_g - 1 downto 0);
     Dat_Vld       : in  std_logic;
     Dat_Rdy       : out std_logic;
     -- Response
@@ -133,7 +134,7 @@ begin
       axi_max_open_trasactions_g   => AxiMaxOpenTrasactions_g,
       user_transaction_size_bits_g => 32,
       data_fifo_depth_g            => DataFifoDepth_g,
-      data_width_g                 => 64,
+      data_width_g                 => IntDataWidth_g,
       impl_read_g                  => false,
       impl_write_g                 => true,
       ram_behavior_g               => RamBehavior_g
@@ -208,4 +209,3 @@ begin
   Done <= DoneI or ErrorI;
 
 end;
-

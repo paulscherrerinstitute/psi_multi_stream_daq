@@ -46,7 +46,7 @@ package psi_ms_daq_input_tb_case_modes is
 		signal Mode : inout RecMode_t;
 		signal Daq_Vld : in std_logic;
 		signal Daq_Rdy : inout std_logic;
-		signal Daq_Data : in Input2Daq_Data_t;
+		signal Daq_Data : in Input2Daq_Data_t(Data(IntDataWidth_g-1 downto 0), Bytes(log2ceil(IntDataWidth_g/8) downto 0));
 		signal Daq_Level : in std_logic_vector;
 		signal Daq_HasLast : in std_logic;
 		signal Ts_Vld : in std_logic;
@@ -131,7 +131,7 @@ package body psi_ms_daq_input_tb_case_modes is
 		signal Mode : inout RecMode_t;
 		signal Daq_Vld : in std_logic;
 		signal Daq_Rdy : inout std_logic;
-		signal Daq_Data : in Input2Daq_Data_t;
+		signal Daq_Data : in Input2Daq_Data_t(Data(IntDataWidth_g-1 downto 0), Bytes(log2ceil(IntDataWidth_g/8) downto 0));
 		signal Daq_Level : in std_logic_vector;
 		signal Daq_HasLast : in std_logic;
 		signal Ts_Vld : in std_logic;

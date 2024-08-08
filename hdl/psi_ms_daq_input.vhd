@@ -33,7 +33,8 @@ entity psi_ms_daq_input is
     StreamTimeout_g     : real                      := 1.0e-3; -- Timeout in seconds							$$ constant=10.0e-6 $$
     StreamClkFreq_g     : real                      := 125.0e6; -- Input clock frequency in Hz					$$ constant=125.0e6 $$
     StreamTsFifoDepth_g : positive                  := 16; -- Timestamp FIFO depth							$$ constant=3 $$
-    StreamUseTs_g       : boolean                   := true -- Enable/Disable the timestamp acquisition		$$ constant=true $$
+    StreamUseTs_g       : boolean                   := true; -- Enable/Disable the timestamp acquisition		$$ constant=true $$
+    IntDataWidth_g      : positive                  := 64
   );
   port(
     -- Data Stream Input
@@ -62,7 +63,7 @@ entity psi_ms_daq_input is
     -- DAQ logic Connections
     Daq_Vld      : out std_logic;       -- $$ proc=daq $$
     Daq_Rdy      : in  std_logic;       -- $$ proc=daq $$
-    Daq_Data     : out Input2Daq_Data_t; -- $$ proc=daq $$
+    Daq_Data     : out Input2Daq_Data_t(Data(IntDataWidth_g-1 downto 0), Bytes(log2ceil(IntDataWidth_g/8) downto 0)); -- $$ proc=daq $$
     Daq_Level    : out std_logic_vector(15 downto 0); -- $$ proc=daq $$
     Daq_HasLast  : out std_logic;       -- $$ proc=daq $$
 
@@ -83,16 +84,18 @@ architecture rtl of psi_ms_daq_input is
 
   -- Constants
   constant TimeoutLimit_c  : integer  := integer(StreamClkFreq_g * StreamTimeout_g) - 1;
-  constant WconvFactor_c   : positive := 64 / StreamWidth_g;
+  constant WconvFactor_c   : positive := IntDataWidth_g / StreamWidth_g;
+  constant BytesWidth_c    : positive := log2ceil(IntDataWidth_g/8) + 1;
   constant TlastCntWidth_c : positive := log2ceil(StreamBuffer_g) + 1;
+  constant DataFifoWidth_c : positive := IntDataWidth_g + BytesWidth_c + 2;
 
   -- Two process method
   type two_process_r is record
     ModeReg        : RecMode_t;
     ArmReg         : std_logic;
-    DataSftReg     : std_logic_vector(63 downto 0);
+    DataSftReg     : std_logic_vector(IntDataWidth_g-1 downto 0);
     WordCnt        : unsigned(log2ceil(WconvFactor_c) downto 0);
-    DataFifoBytes  : unsigned(3 downto 0);
+    DataFifoBytes  : unsigned(BytesWidth_c-1 downto 0);
     TrigLatch      : std_logic;
     DataFifoVld    : std_logic;
     DataFifoIsTo   : std_logic;
@@ -115,16 +118,16 @@ architecture rtl of psi_ms_daq_input is
 
   -- Data FIFO signals
   signal DataFifo_InRdy   : std_logic;
-  signal DataFifo_InData  : std_logic_vector(69 downto 0);
-  signal DataFifo_OutData : std_logic_vector(69 downto 0);
-  signal DataFifo_PlData  : std_logic_vector(69 downto 0);
+  signal DataFifo_InData  : std_logic_vector(DataFifoWidth_c-1 downto 0);
+  signal DataFifo_OutData : std_logic_vector(DataFifoWidth_c-1 downto 0);
+  signal DataFifo_PlData  : std_logic_vector(DataFifoWidth_c-1 downto 0);
   signal DataFifo_PlVld   : std_logic;
   signal DataFifo_PlRdy   : std_logic;
   signal DataFifo_Level   : std_logic_vector(log2ceil(StreamBuffer_g) downto 0);
   signal DataPl_Level     : unsigned(1 downto 0);
 
   -- Internally reused signals
-  signal Daq_Data_I    : Input2Daq_Data_t;
+  signal Daq_Data_I    : Input2Daq_Data_t(Data(IntDataWidth_g-1 downto 0), Bytes(BytesWidth_c-1 downto 0));
   signal Daq_Vld_I     : std_logic;
   signal Daq_HasLast_I : std_logic;
   signal Ts_Vld_I      : std_logic;
@@ -273,7 +276,7 @@ begin
     -- Process input data
     if ProcessSample_v and r.RecEna = '1' then
       v.WordCnt                                                                                                  := r.WordCnt + 1;
-      -- Write because 64-bits are ready
+      -- Write because full word is ready
       if r.WordCnt = WconvFactor_c - 1 then
         v.DataFifoVld := r.DataFifoVld or r.RecEna;
       end if;
@@ -486,14 +489,14 @@ begin
     );
 
   -- Data FIFO
-  DataFifo_InData(63 downto 0)  <= r.DataSftReg;
-  DataFifo_InData(67 downto 64) <= std_logic_vector(r.DataFifoBytes);
-  DataFifo_InData(68)           <= r.DataFifoIsTo;
-  DataFifo_InData(69)           <= r.DataFifoIsTrig;
+  DataFifo_InData(IntDataWidth_g-1 downto 0)  <= r.DataSftReg;
+  DataFifo_InData(IntDataWidth_g+BytesWidth_c-1 downto IntDataWidth_g) <= std_logic_vector(r.DataFifoBytes);
+  DataFifo_InData(DataFifo_InData'high - 1) <= r.DataFifoIsTo;
+  DataFifo_InData(DataFifo_InData'high)     <= r.DataFifoIsTrig;
 
   i_dfifo : entity work.psi_common_async_fifo
     generic map(
-      width_g     => 70,
+      width_g     => DataFifoWidth_c,
       depth_g     => StreamBuffer_g,
       afull_on_g  => false,
       aempty_on_g => false
@@ -515,7 +518,7 @@ begin
   -- An additional pipeline stage after the FIFO is required for timing reasons
   i_dplstage : entity work.psi_common_pl_stage
     generic map(
-      width_g   => 70,
+      width_g   => DataFifoWidth_c,
       use_rdy_g => true
     )
     port map(
@@ -530,10 +533,10 @@ begin
     );
   Str_Rdy <= DataFifo_InRdy;
 
-  Daq_Data_I.Data   <= DataFifo_OutData(63 downto 0);
-  Daq_Data_I.Bytes  <= DataFifo_OutData(67 downto 64);
-  Daq_Data_I.IsTo   <= DataFifo_OutData(68);
-  Daq_Data_I.IsTrig <= DataFifo_OutData(69);
+  Daq_Data_I.Data   <= DataFifo_OutData(IntDataWidth_g-1 downto 0);
+  Daq_Data_I.Bytes  <= DataFifo_OutData(IntDataWidth_g+BytesWidth_c-1 downto IntDataWidth_g);
+  Daq_Data_I.IsTo   <= DataFifo_OutData(DataFifo_OutData'high-1);
+  Daq_Data_I.IsTrig <= DataFifo_OutData(DataFifo_OutData'high);
   Daq_Data_I.Last   <= Daq_Data_I.IsTo or Daq_Data_I.IsTrig;
   Daq_Data          <= Daq_Data_I;
   Daq_Vld           <= Daq_Vld_I;

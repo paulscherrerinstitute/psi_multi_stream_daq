@@ -31,6 +31,7 @@ entity psi_ms_daq_axi is
     StreamTsFifoDepth_g     : t_ainteger               := (16, 16);
     StreamUseTs_g           : t_abool                  := (true, true);
     -- Recording
+    IntDataWidth_g          : positive                 := 64;
     MaxWindows_g            : positive range 1 to 32   := 16;
     MinBurstSize_g          : integer range 1 to 512   := 512;
     MaxBurstSize_g          : integer range 1 to 512   := 512;
@@ -159,14 +160,14 @@ architecture rtl of psi_ms_daq_axi is
   -- Input/Dma
   signal InpDma_Vld  : std_logic_vector(Streams_g - 1 downto 0);
   signal InpDma_Rdy  : std_logic_vector(Streams_g - 1 downto 0);
-  signal InpDma_Data : Input2Daq_Data_a(Streams_g - 1 downto 0);
+  signal InpDma_Data : Input2Daq_Data_a(Streams_g - 1 downto 0)(Data(IntDataWidth_g-1 downto 0), Bytes(log2ceil(IntDataWidth_g/8) downto 0));
 
   -- Dma/Mem
   signal DmaMem_CmdAddr : std_logic_vector(31 downto 0);
   signal DmaMem_CmdSize : std_logic_vector(31 downto 0);
   signal DmaMem_CmdVld  : std_logic;
   signal DmaMem_CmdRdy  : std_logic;
-  signal DmaMem_DatData : std_logic_vector(63 downto 0);
+  signal DmaMem_DatData : std_logic_vector(IntDataWidth_g-1 downto 0);
   signal DmaMem_DatVld  : std_logic;
   signal DmaMem_DatRdy  : std_logic;
 
@@ -181,6 +182,10 @@ architecture rtl of psi_ms_daq_axi is
   signal Cfg_RecMode   : t_aslv2(Streams_g - 1 downto 0);
   signal Cfg_ToDisable : std_logic_vector(Streams_g -1 downto 0);
   signal Cfg_FrameTo   : std_logic_vector(Streams_g -1 downto 0);
+  signal AWCache       : t_aslv4(2 downto 0) := (others => (others => '0'));
+  signal AWProt        : t_aslv3(2 downto 0) := (others => (others => '0'));
+  signal ARCache       : t_aslv4(2 downto 0) := (others => (others => '0'));
+  signal ARProt        : t_aslv3(2 downto 0) := (others => (others => '0'));
   -- Status
   signal Stat_StrIrq      : std_logic_vector(Streams_g - 1 downto 0);
   signal Stat_StrLastWin  : WinType_a(Streams_g - 1 downto 0);
@@ -202,6 +207,23 @@ begin
 
   M_Axi_Areset <= not M_Axi_Aresetn;
   S_Axi_Areset <= not S_Axi_Aresetn;
+
+  -- Sync quasi static vecctors
+  sync_apc_reg : process(M_Axi_Aclk)
+  begin
+    if rising_edge(M_Axi_Aclk) then
+      for i in 1 to 2 loop
+        AWProt(i)  <= AWProt(i-1);
+        AWCache(i) <= AWCache(i-1);
+        ARProt(i)  <= ARProt(i-1);
+        ARCache(i) <= ARCache(i-1);
+      end loop;
+    end if;
+  end process;
+  M_Axi_AwCache <= AWCache(2);
+  M_Axi_AwProt  <= AWProt(2);
+  M_Axi_ArCache <= ARCache(2);
+  M_Axi_ArProt  <= ARProt(2);
 
   --------------------------------------------
   -- Register Interface
@@ -251,6 +273,10 @@ begin
       S_Axi_BValid  => S_Axi_BValid,
       S_Axi_BReady  => S_Axi_BReady,
       IrqOut        => Irq,
+      AWCache       => AWCache(0),
+      AWProt        => AWProt(0),
+      ARCache       => ARCache(0),
+      ARProt        => ARProt(0),
       PostTrig      => Cfg_PostTrig,
       Arm           => Cfg_Arm,
       IsArmed       => Stat_IsArmed,
@@ -290,7 +316,8 @@ begin
         StreamTimeout_g     => StreamTimeout_c(str),
         StreamClkFreq_g     => StreamClkFreq_c(str),
         StreamTsFifoDepth_g => StreamTsFifoDepth_c(str),
-        StreamUseTs_g       => StreamUseTs_c(str)
+        StreamUseTs_g       => StreamUseTs_c(str),
+        IntDataWidth_g      => IntDataWidth_g
       )
       port map(
         Str_Clk      => Str_Clk(str),
@@ -367,7 +394,8 @@ begin
   --------------------------------------------
   i_dma : entity work.psi_ms_daq_daq_dma
     generic map(
-      Streams_g => Streams_g
+      Streams_g      => Streams_g,
+      IntDataWidth_g => IntDataWidth_g
     )
     port map(
       Clk            => M_Axi_Aclk,
@@ -395,6 +423,7 @@ begin
   --------------------------------------------
   i_memif : entity work.psi_ms_daq_axi_if
     generic map(
+      IntDataWidth_g          => IntDataWidth_g,
       AxiDataWidth_g          => AxiDataWidth_g,
       AxiMaxBeats_g           => AxiMaxBurstBeats_g,
       AxiMaxOpenTrasactions_g => AxiMaxOpenTrasactions_g,
@@ -419,8 +448,8 @@ begin
       M_Axi_AwSize  => M_Axi_AwSize,
       M_Axi_AwBurst => M_Axi_AwBurst,
       M_Axi_AwLock  => M_Axi_AwLock,
-      M_Axi_AwCache => M_Axi_AwCache,
-      M_Axi_AwProt  => M_Axi_AwProt,
+      M_Axi_AwCache => open, --M_Axi_AwCache
+      M_Axi_AwProt  => open, --M_Axi_AwProt
       M_Axi_AwValid => M_Axi_AwValid,
       M_Axi_AwReady => M_Axi_AwReady,
       M_Axi_WData   => M_Axi_WData,
@@ -436,8 +465,8 @@ begin
       M_Axi_ArSize  => M_Axi_ArSize,
       M_Axi_ArBurst => M_Axi_ArBurst,
       M_Axi_ArLock  => M_Axi_ArLock,
-      M_Axi_ArCache => M_Axi_ArCache,
-      M_Axi_ArProt  => M_Axi_ArProt,
+      M_Axi_ArCache => open, --M_Axi_ArCache
+      M_Axi_ArProt  => open, --M_Axi_ArProt
       M_Axi_ArValid => M_Axi_ArValid,
       M_Axi_ArReady => M_Axi_ArReady,
       M_Axi_RData   => M_Axi_RData,
