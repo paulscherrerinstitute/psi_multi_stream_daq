@@ -79,6 +79,10 @@ entity psi_ms_daq_reg_axi is
     ToDisable     : out std_logic_vector(Streams_g - 1 downto 0);
     FrameTo       : out std_logic_vector(Streams_g - 1 downto 0);
     IrqOut        : out std_logic;
+    AWCache       : out std_logic_vector(3 downto 0);
+    AWProt        : out std_logic_vector(2 downto 0);
+    ARCache       : out std_logic_vector(3 downto 0);
+    ARProt        : out std_logic_vector(2 downto 0);
     -- Memory Interfae Clock domain control singals
     ClkMem        : in  std_logic;
     RstMem        : in  std_logic;
@@ -104,6 +108,10 @@ architecture rtl of psi_ms_daq_reg_axi is
     Reg_IrqVec         : std_logic_vector(Streams_g - 1 downto 0);
     Reg_IrqEna         : std_logic_vector(Streams_g - 1 downto 0);
     Reg_StrEna         : std_logic_vector(Streams_g - 1 downto 0);
+    Reg_AcpCfg_ARProt  : std_logic_vector(2 downto 0);
+    Reg_AcpCfg_ARCache : std_logic_vector(3 downto 0);
+    Reg_AcpCfg_AWProt  : std_logic_vector(2 downto 0);
+    Reg_AcpCfg_AWCache : std_logic_vector(3 downto 0);
     Reg_PostTrig       : t_aslv32(Streams_g - 1 downto 0);
     Reg_Mode_Recm      : t_aslv2(Streams_g - 1 downto 0);
     Reg_Mode_Arm       : std_logic_vector(Streams_g - 1 downto 0);
@@ -201,6 +209,18 @@ begin
     end if;
     RegRdVal(16#20# / 4)(Streams_g - 1 downto 0) <= r.Reg_StrEna;
 
+    -- STRENA
+    if RegWr(16#24# / 4) = '1' then
+      v.Reg_AcpCfg_ARProt  := RegWrVal(16#24# / 4)( 2 downto  0);
+      v.Reg_AcpCfg_ARCache := RegWrVal(16#24# / 4)( 7 downto  4);
+      v.Reg_AcpCfg_AWProt  := RegWrVal(16#24# / 4)(10 downto  8);
+      v.Reg_AcpCfg_AWCache := RegWrVal(16#24# / 4)(15 downto 12);
+    end if;
+    RegRdVal(16#24# / 4)( 2 downto  0) <= r.Reg_AcpCfg_ARProt;
+    RegRdVal(16#24# / 4)( 7 downto  4) <= r.Reg_AcpCfg_ARCache;
+    RegRdVal(16#24# / 4)(10 downto  8) <= r.Reg_AcpCfg_AWProt;
+    RegRdVal(16#24# / 4)(15 downto 12) <= r.Reg_AcpCfg_AWCache;
+
     -- *** Stream Register Accesses ***
     v.RegRdval     := (others => '0');
     v.Reg_Mode_Arm := (others => '0');
@@ -296,6 +316,10 @@ begin
   RecMode   <= r.Reg_Mode_Recm;
   ToDisable <= r.Reg_Mode_ToDisable;
   FrameTo   <= r.Reg_Mode_FrameTo;
+  ARProt    <= r.Reg_AcpCfg_ARProt;
+  ARCache   <= r.Reg_AcpCfg_ARCache;
+  AWProt    <= r.Reg_AcpCfg_AWProt;
+  AWCache   <= r.Reg_AcpCfg_AWCache;
 
   --------------------------------------------
   -- Sequential Process
@@ -310,6 +334,10 @@ begin
         r.Reg_IrqVec         <= (others => '0');
         r.Reg_IrqEna         <= (others => '0');
         r.Reg_StrEna         <= (others => '0');
+        r.Reg_AcpCfg_ARProt  <= (others => '0');
+        r.Reg_AcpCfg_ARCache <= (others => '0');
+        r.Reg_AcpCfg_AWProt  <= (others => '0');
+        r.Reg_AcpCfg_AWCache <= (others => '0');
         r.Irq                <= '0';
         r.Reg_PostTrig       <= (others => (others => '0'));
         r.Reg_Mode_Recm      <= (others => (others => '0'));
