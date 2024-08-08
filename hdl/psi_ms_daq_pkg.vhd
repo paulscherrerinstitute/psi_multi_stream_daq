@@ -36,8 +36,8 @@ package psi_ms_daq_pkg is
 
   type Input2Daq_Data_t is record
     Last   : std_logic;
-    Data   : std_logic_vector(63 downto 0);
-    Bytes  : std_logic_vector(3 downto 0);
+    Data   : std_logic_vector;
+    Bytes  : std_logic_vector;
     IsTo   : std_logic;
     IsTrig : std_logic;
   end record;

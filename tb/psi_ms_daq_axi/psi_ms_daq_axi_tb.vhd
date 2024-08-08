@@ -55,9 +55,11 @@ architecture sim of psi_ms_daq_axi_tb is
 	constant ID_WIDTH 		: integer 	:= 1;
 	constant ADDR_WIDTH 	: integer	:= 32;
 	constant USER_WIDTH		: integer	:= 1;
-	constant DATA_WIDTH		: integer	:= 64;
+	constant DATA_WIDTH		: integer	:= 128;
 	constant BYTE_WIDTH		: integer	:= DATA_WIDTH/8;
 	
+	constant IntDataWidth_g : integer := 128;
+
 	subtype ID_RANGE is natural range ID_WIDTH-1 downto 0;
 	subtype ADDR_RANGE is natural range ADDR_WIDTH-1 downto 0;
 	subtype USER_RANGE is natural range USER_WIDTH-1 downto 0;
@@ -163,9 +165,11 @@ begin
 			StreamClkFreq_g			=> ClkFreq_c,
 			StreamTsFifoDepth_g		=> (0=>16,		1=>16,			2=>16,		3=>16),
 			StreamUseTs_g			=> (0=>true,	1=>true,		2=>true,	3=>false),
+			IntDataWidth_g			=> IntDataWidth_g,
 			MaxWindows_g			=> work.psi_ms_daq_axi_tb_pkg.MaxWindows_c,
 			MinBurstSize_g			=> 16,
 			MaxBurstSize_g			=> 128,
+			AxiDataWidth_g			=> DATA_WIDTH,
 			AxiFifoDepth_g			=> 512,
 			AxiSlaveIdWidth_g		=> 1
 		)

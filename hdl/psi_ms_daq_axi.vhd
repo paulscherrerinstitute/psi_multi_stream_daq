@@ -31,6 +31,7 @@ entity psi_ms_daq_axi is
     StreamTsFifoDepth_g     : t_ainteger               := (16, 16);
     StreamUseTs_g           : t_abool                  := (true, true);
     -- Recording
+    IntDataWidth_g          : positive                 := 64;
     MaxWindows_g            : positive range 1 to 32   := 16;
     MinBurstSize_g          : integer range 1 to 512   := 512;
     MaxBurstSize_g          : integer range 1 to 512   := 512;
@@ -159,14 +160,14 @@ architecture rtl of psi_ms_daq_axi is
   -- Input/Dma
   signal InpDma_Vld  : std_logic_vector(Streams_g - 1 downto 0);
   signal InpDma_Rdy  : std_logic_vector(Streams_g - 1 downto 0);
-  signal InpDma_Data : Input2Daq_Data_a(Streams_g - 1 downto 0);
+  signal InpDma_Data : Input2Daq_Data_a(Streams_g - 1 downto 0)(Data(IntDataWidth_g-1 downto 0), Bytes(log2ceil(IntDataWidth_g/8) downto 0));
 
   -- Dma/Mem
   signal DmaMem_CmdAddr : std_logic_vector(31 downto 0);
   signal DmaMem_CmdSize : std_logic_vector(31 downto 0);
   signal DmaMem_CmdVld  : std_logic;
   signal DmaMem_CmdRdy  : std_logic;
-  signal DmaMem_DatData : std_logic_vector(63 downto 0);
+  signal DmaMem_DatData : std_logic_vector(IntDataWidth_g-1 downto 0);
   signal DmaMem_DatVld  : std_logic;
   signal DmaMem_DatRdy  : std_logic;
 
@@ -290,7 +291,8 @@ begin
         StreamTimeout_g     => StreamTimeout_c(str),
         StreamClkFreq_g     => StreamClkFreq_c(str),
         StreamTsFifoDepth_g => StreamTsFifoDepth_c(str),
-        StreamUseTs_g       => StreamUseTs_c(str)
+        StreamUseTs_g       => StreamUseTs_c(str),
+        IntDataWidth_g      => IntDataWidth_g
       )
       port map(
         Str_Clk      => Str_Clk(str),
@@ -367,7 +369,8 @@ begin
   --------------------------------------------
   i_dma : entity work.psi_ms_daq_daq_dma
     generic map(
-      Streams_g => Streams_g
+      Streams_g      => Streams_g,
+      IntDataWidth_g => IntDataWidth_g
     )
     port map(
       Clk            => M_Axi_Aclk,
@@ -395,6 +398,7 @@ begin
   --------------------------------------------
   i_memif : entity work.psi_ms_daq_axi_if
     generic map(
+      IntDataWidth_g          => IntDataWidth_g,
       AxiDataWidth_g          => AxiDataWidth_g,
       AxiMaxBeats_g           => AxiMaxBurstBeats_g,
       AxiMaxOpenTrasactions_g => AxiMaxOpenTrasactions_g,
